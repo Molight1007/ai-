@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "meta": {
+    "project": "demo-agent",
+    "language": "python"
+  },
+  "modules": [
+    { "id": "m_agent", "label": "agent 编排层", "layer": "L9",
+      "files": ["f_ghost"] },
+    { "id": "m_agent", "label": "重复的模块" }
+  ],
+  "files": [
+    {
+      "id": "f_orchestrator", "path": "agent/orchestrator.py", "module": "m_ghost",
+      "lines": -1,
+      "functions": [
+        { "id": "fn_run", "name": "run_pipeline", "line": 300, "end_line": 120 }
+      ]
+    }
+  ],
+  "dependencies": [
+    { "from": "f_orchestrator", "to": "f_never_declared", "type": "import" }
+  ],
+  "flows": [
+    { "id": "flow_main", "label": "主流程", "steps": ["fn_run", "fn_missing"] }
+  ],
+  "rule_violations": [
+    { "id": "V1", "rule": "R_FUNC_LEN", "node": "fn_run" }
+  ],
+  "findings": [
+    { "id": "F1", "severity": "fatal", "type": "logic_bug", "node": "fn_ghost", "line": 1, "title": "x" }
+  ]
+}

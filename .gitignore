@@ -1,0 +1,28 @@
+# Node / 前端
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# 环境与密钥
+.env
+*.local
+
+# 编辑器
+.idea/
+.vscode/
+
+# 产物（只增不改，不进仓库）
+results/
+测试结果/
+
+# 记忆与内部文档（不进仓库）
+.workbuddy/
+docs/

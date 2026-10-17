@@ -1,0 +1,29 @@
+# AI 代码规范（规则集）—— 既是解析依据，又是校验标尺。
+# 规则引擎（engine.py）读取本文件，对 Python 项目做静态自检，产出 rule_violations。
+
+[rules.R_FUNC_LEN]
+enabled = true
+max_lines = 150
+severity = "warning"
+
+[rules.R_FILE_LEN]
+enabled = true
+max_lines = 800
+severity = "warning"
+
+[rules.R_GOD_CLASS]
+enabled = true
+max_methods = 15
+severity = "warning"
+
+[rules.R_NO_DOCSTRING]
+enabled = true
+severity = "info"
+
+[rules.R_BARE_EXCEPT]
+enabled = true
+severity = "warning"
+
+[rules.R_DEAD_CODE]
+enabled = false
+severity = "warning"

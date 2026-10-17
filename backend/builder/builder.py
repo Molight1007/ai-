@@ -1,0 +1,338 @@
+"""Builder：静态扫描 + 规则引擎 → 骨架 IR（确定性阶段）。
+
+产出**合法 IR**（可过校验器）：
+- modules：按顶层目录机械分组（layer/summary/description 留空，待 WorkBuddy 补语义）
+- files：每个 .py 的 docstring 首行 + 函数（name/line/end_line/signature/docstring 首行/文件内调用）
+- dependencies：import 依赖（项目内文件间，确定事实）
+- rule_violations：规则引擎产出，映射到函数/文件 id
+- findings / flows / description：留空（语义，WorkBuddy 补）
+
+用法：
+    python -m backend.builder.builder <项目目录> [-o out.ir.json]
+"""
+
+from __future__ import annotations
+
+import ast
+import json
+import os
+import sys
+
+from backend.ir.validate import errors_only, validate
+from backend.rules.engine import analyze as analyze_rules
+from backend.rules.engine import load_rules
+
+_SKIP_DIRS = {
+    "__pycache__", ".git", ".venv", "venv", "env", "node_modules",
+    "dist", "build", "tests", "test", ".idea", ".vscode", ".mypy_cache",
+    ".pytest_cache", "results",
+}
+
+
+class IdGen:
+    def __init__(self):
+        self._seen: set[str] = set()
+
+    def gen(self, base: str) -> str:
+        base = sanitize(base)
+        if base not in self._seen:
+            self._seen.add(base)
+            return base
+        i = 1
+        while f"{base}_{i}" in self._seen:
+            i += 1
+        name = f"{base}_{i}"
+        self._seen.add(name)
+        return name
+
+
+def sanitize(s: str) -> str:
+    """把任意字符串压成合法 id（字母开头，仅 [a-zA-Z0-9_-]）。"""
+    out: list[str] = []
+    for ch in s.lower():
+        if "a" <= ch <= "z" or "0" <= ch <= "9":
+            out.append(ch)
+        elif ch in "-_":
+            out.append("_")
+        # 其余（中文/符号）丢弃，避免连续下划线
+    s = "".join(out).strip("_")
+    if not s:
+        s = "x"
+    if s[0].isdigit():
+        s = "n" + s
+    return s
+
+
+def iter_py_files(root: str):
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = [d for d in dirnames if d not in _SKIP_DIRS and not d.startswith(".")]
+        for fn in sorted(filenames):
+            if fn.endswith(".py"):
+                yield os.path.join(dirpath, fn)
+
+
+def _rel(root: str, path: str) -> str:
+    return os.path.relpath(path, root).replace("\\", "/")
+
+
+def _first_line(doc: str | None) -> str | None:
+    return doc.split("\n")[0].strip() if doc else None
+
+
+def _signature(lines: list[str], node: ast.AST) -> str:
+    t = lines[node.lineno - 1].strip()
+    return t.split("#")[0].rstrip()
+
+
+def scan_file(root: str, path: str) -> dict:
+    rp = _rel(root, path)
+    with open(path, "r", encoding="utf-8") as fp:
+        src = fp.read()
+    lines = src.splitlines()
+    tree = ast.parse(src)
+
+    defined: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            defined.add(node.name)
+
+    imports: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for a in node.names:
+                imports.append(a.name)
+        elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
+            imports.append(node.module)
+
+    functions: list[dict] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        calls: set[str] = set()
+        for sub in ast.walk(node):
+            if isinstance(sub, ast.Call):
+                name = None
+                if isinstance(sub.func, ast.Name):
+                    name = sub.func.id
+                elif isinstance(sub.func, ast.Attribute) and isinstance(sub.func.value, ast.Name):
+                    name = sub.func.attr
+                if name and name in defined and name != node.name:
+                    calls.add(name)
+        functions.append({
+            "name": node.name,
+            "line": node.lineno,
+            "end_line": getattr(node, "end_lineno", node.lineno),
+            "signature": _signature(lines, node),
+            "doc": _first_line(ast.get_docstring(node)),
+            "calls": sorted(calls),
+        })
+
+    return {
+        "path": rp, "lines": len(lines), "doc": _first_line(ast.get_docstring(tree)),
+        "imports": sorted(set(imports)), "functions": functions,
+    }
+
+
+def _resolve_import(modname: str, path_set: set[str]) -> str | None:
+    """把 import 模块名解析为项目内文件路径；外部库返回 None。"""
+    parts = modname.split(".")
+    for i in range(len(parts), 0, -1):
+        prefix = "/".join(parts[:i])
+        for cand in (prefix + ".py", prefix + "/__init__.py"):
+            if cand in path_set:
+                return cand
+    return None
+
+
+def build_ir(root: str) -> dict:
+    root = os.path.abspath(root)
+    root_name = os.path.basename(root.rstrip("/\\")) or "project"
+
+    metas = [scan_file(root, p) for p in iter_py_files(root)]
+    metas.sort(key=lambda m: m["path"])
+    if not metas:
+        raise ValueError(f"目录下没有 .py 文件：{root}")
+
+    idgen = IdGen()
+
+    # 文件 id
+    file_ids: dict[str, str] = {}
+    for m in metas:
+        base = m["path"].rsplit(".", 1)[0]
+        file_ids[m["path"]] = idgen.gen("f_" + base)
+
+    # 函数 id（全局唯一）
+    func_ids: dict[tuple[str, str], str] = {}
+    for m in metas:
+        for fn in m["functions"]:
+            func_ids[(m["path"], fn["name"])] = idgen.gen(
+                file_ids[m["path"]] + "_" + fn["name"]
+            )
+
+    # 模块分组（顶层目录）
+    groups: dict[str, list[dict]] = {}
+    for m in metas:
+        parts = m["path"].split("/")
+        key = parts[0] if len(parts) > 1 else "__root__"
+        groups.setdefault(key, []).append(m)
+
+    modules: list[dict] = []
+    path_to_module: dict[str, str] = {}
+    for key in sorted(groups):
+        label = root_name if key == "__root__" else key
+        mid = idgen.gen("m_" + label)
+        modules.append({
+            "id": mid, "label": label,
+            "files": [file_ids[m["path"]] for m in groups[key]],
+        })
+        for m in groups[key]:
+            path_to_module[m["path"]] = mid
+
+    # files
+    files: list[dict] = []
+    id_to_path: dict[str, str] = {}
+    for m in metas:
+        fid = file_ids[m["path"]]
+        id_to_path[fid] = m["path"]
+        files.append({
+            "id": fid, "path": m["path"], "module": path_to_module[m["path"]],
+            "language": "python", "lines": m["lines"], "summary": m["doc"],
+            "functions": [
+                {
+                    "id": func_ids[(m["path"], fn["name"])],
+                    "name": fn["name"], "line": fn["line"], "end_line": fn["end_line"],
+                    "signature": fn["signature"], "summary": fn["doc"],
+                }
+                for fn in m["functions"]
+            ],
+        })
+
+    # 函数调用（文件内，映射为 id）
+    for m in metas:
+        fid = file_ids[m["path"]]
+        fe = next(f for f in files if f["id"] == fid)
+        by_name = {fn["name"]: fn for fn in fe["functions"]}
+        for fn in fe["functions"]:
+            meta_fn = next(x for x in m["functions"] if x["name"] == fn["name"])
+            call_ids = []
+            for cname in meta_fn["calls"]:
+                if cname in by_name:
+                    call_ids.append(by_name[cname]["id"])
+            fn["calls"] = sorted(set(call_ids))
+            fn["called_by"] = []
+    # 反推 called_by
+    for fe in files:
+        for fn in fe["functions"]:
+            for cid in fn.get("calls", []):
+                for fe2 in files:
+                    for fn2 in fe2["functions"]:
+                        if fn2["id"] == cid and fn["id"] not in fn2["called_by"]:
+                            fn2["called_by"].append(fn["id"])
+
+    # dependencies（import 匹配）
+    path_set = set(file_ids.keys())
+    deps: list[dict] = []
+    for m in metas:
+        for imp in m["imports"]:
+            target = _resolve_import(imp, path_set)
+            if target and target != m["path"]:
+                deps.append({
+                    "from": file_ids[m["path"]], "to": file_ids[target], "type": "import",
+                })
+
+    # rule_violations（映射 node）
+    rvs: list[dict] = []
+    for v in analyze_rules(root, load_rules()):
+        node = None
+        if v.name and (v.path, v.name) in func_ids:
+            node = func_ids[(v.path, v.name)]
+        elif v.path in file_ids:
+            node = file_ids[v.path]
+        if node:
+            rvs.append({
+                "id": idgen.gen("v"), "rule": v.rule, "node": node,
+                "line": v.line, "detail": v.detail, "suggestion": v.suggestion,
+                "severity": v.severity,
+            })
+
+    # module_dependencies（文件依赖聚合）
+    mod_deps: list[dict] = []
+    seen_md: set[tuple[str, str]] = set()
+    for d in deps:
+        fm = path_to_module[id_to_path[d["from"]]]
+        tm = path_to_module[id_to_path[d["to"]]]
+        if fm != tm and (fm, tm) not in seen_md:
+            seen_md.add((fm, tm))
+            mod_deps.append({"from": fm, "to": tm, "type": "import"})
+
+    ir = {
+        "schema_version": 2,
+        "meta": {
+            "project": root_name, "language": "python", "generated_by": "builder",
+            "rules_version": "1.0",
+            "stats": {
+                "files": len(files), "lines": sum(f["lines"] for f in files),
+                "functions": sum(len(f["functions"]) for f in files),
+                "errors": 0, "warnings": len(rvs),
+            },
+        },
+        "modules": modules,
+        "files": files,
+        "dependencies": deps,
+        "module_dependencies": mod_deps,
+        "flows": [],
+        "rule_violations": rvs,
+        "findings": [],
+    }
+    return ir
+
+
+ENRICH_FILENAME = "enrich.ir.json"
+
+
+def load_or_build_ir(root: str) -> tuple[dict, str]:
+    """优先加载语义填充后的 enrich.ir.json，否则回退骨架 IR。
+
+    返回 (IR, 来源)；来源 = "enriched" 或 "skeleton"。
+    语义填充（layer/summary/description/findings/flows）由 WorkBuddy 完成，
+    产物写入 <root>/enrich.ir.json；本函数是「机器骨架 ↔ LLM 语义」的衔接点。
+    """
+    root = os.path.abspath(root)
+    enrich_path = os.path.join(root, ENRICH_FILENAME)
+    if os.path.isfile(enrich_path):
+        try:
+            with open(enrich_path, "r", encoding="utf-8") as fp:
+                ir = json.load(fp)
+            if not errors_only(validate(ir)):
+                return ir, "enriched"
+        except (json.JSONDecodeError, OSError):
+            pass  # 坏文件回退骨架
+    return build_ir(root), "skeleton"
+
+
+def main(argv: list[str]) -> int:
+    root = argv[0] if argv else "."
+    out_path = None
+    if "-o" in argv:
+        i = argv.index("-o")
+        if i + 1 < len(argv):
+            out_path = argv[i + 1]
+    ir = build_ir(root)
+    issues = [i for i in validate(ir) if i.is_error]
+    if issues:
+        print("⚠ 骨架 IR 校验未通过：", file=sys.stderr)
+        for i in issues:
+            print("  " + str(i), file=sys.stderr)
+        return 1
+    text = json.dumps(ir, ensure_ascii=False, indent=2)
+    if out_path:
+        with open(out_path, "w", encoding="utf-8") as fp:
+            fp.write(text)
+        print(f"已写出 {out_path}")
+    else:
+        print(text)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

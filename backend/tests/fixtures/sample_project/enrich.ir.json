@@ -1,0 +1,100 @@
+{
+  "schema_version": 2,
+  "meta": {
+    "project": "sample_project",
+    "language": "python",
+    "generated_by": "workbuddy",
+    "generated_at": "2026-10-18T00:00:00Z",
+    "rules_version": "1.0",
+    "stats": { "files": 4, "lines": 72, "functions": 12, "errors": 1, "warnings": 7 }
+  },
+  "modules": [
+    {
+      "id": "m_sample_project",
+      "label": "样例项目",
+      "layer": "L2",
+      "summary": "演示 AI 代码可视化能力的样例项目",
+      "description": "一个刻意包含「违规样例」与「正常样例」的小项目，用于演示可视化结构、功能说明与审查三条链路。",
+      "files": ["f_bad", "f_caller", "f_good", "f_importer"]
+    }
+  ],
+  "files": [
+    {
+      "id": "f_bad", "path": "bad.py", "module": "m_sample_project",
+      "language": "python", "lines": 48,
+      "summary": "测试用违规样例文件",
+      "description": "集中展示了多种静态规则违规：缺 docstring、裸 except、超长函数、疑似上帝类，供审查模式演示。",
+      "functions": [
+        { "id": "f_bad_clean", "name": "clean", "line": 4, "end_line": 6,
+          "signature": "def clean():", "summary": "有 docstring 的正常函数", "calls": [], "called_by": [] },
+        { "id": "f_bad_no_docstring", "name": "no_docstring", "line": 9, "end_line": 13,
+          "signature": "def no_docstring():", "summary": null, "calls": [], "called_by": [] },
+        { "id": "f_bad_too_long", "name": "too_long", "line": 16, "end_line": 24,
+          "signature": "def too_long():", "summary": null, "calls": [], "called_by": [] },
+        { "id": "f_bad_bare_except", "name": "bare_except", "line": 43, "end_line": 47,
+          "signature": "def bare_except():", "summary": null, "calls": [], "called_by": [] },
+        { "id": "f_bad_one", "name": "one", "line": 30, "end_line": 31,
+          "signature": "def one(self):", "summary": null, "calls": [], "called_by": [] },
+        { "id": "f_bad_two", "name": "two", "line": 33, "end_line": 34,
+          "signature": "def two(self):", "summary": null, "calls": [], "called_by": [] },
+        { "id": "f_bad_three", "name": "three", "line": 36, "end_line": 37,
+          "signature": "def three(self):", "summary": null, "calls": [], "called_by": [] },
+        { "id": "f_bad_four", "name": "four", "line": 39, "end_line": 40,
+          "signature": "def four(self):", "summary": null, "calls": [], "called_by": [] }
+      ]
+    },
+    {
+      "id": "f_caller", "path": "caller.py", "module": "m_sample_project",
+      "language": "python", "lines": 10,
+      "summary": "文件内调用示例",
+      "description": "演示函数间的文件内调用关系（main_flow 调用 helper），用于验证调用链抽取。",
+      "functions": [
+        { "id": "f_caller_helper", "name": "helper", "line": 4, "end_line": 6,
+          "signature": "def helper():", "summary": "辅助函数", "calls": [], "called_by": ["f_caller_main_flow"] },
+        { "id": "f_caller_main_flow", "name": "main_flow", "line": 9, "end_line": 11,
+          "signature": "def main_flow():", "summary": "主流程，调用 helper", "calls": ["f_caller_helper"], "called_by": [] }
+      ]
+    },
+    {
+      "id": "f_good", "path": "good.py", "module": "m_sample_project",
+      "language": "python", "lines": 7,
+      "summary": "正常文件：无违规",
+      "description": "一个无任何违规的干净文件，作为对照。",
+      "functions": [
+        { "id": "f_good_add", "name": "add", "line": 4, "end_line": 6,
+          "signature": "def add(a, b):", "summary": "两数相加", "calls": [], "called_by": ["f_importer_use_add"] }
+      ]
+    },
+    {
+      "id": "f_importer", "path": "importer.py", "module": "m_sample_project",
+      "language": "python", "lines": 8,
+      "summary": "导入示例文件",
+      "description": "演示跨文件 import 依赖的抽取（from good import add）。",
+      "functions": [
+        { "id": "f_importer_use_add", "name": "use_add", "line": 6, "end_line": 8,
+          "signature": "def use_add(a, b):", "summary": "调用 good.add", "calls": ["f_good_add"], "called_by": [] }
+      ]
+    }
+  ],
+  "dependencies": [
+    { "from": "f_importer", "to": "f_good", "type": "import" }
+  ],
+  "module_dependencies": [],
+  "flows": [
+    { "id": "flow_main", "label": "调用链示例", "steps": ["f_importer_use_add", "f_good_add"] }
+  ],
+  "rule_violations": [
+    { "id": "V1", "rule": "R_NO_DOCSTRING", "node": "f_bad_no_docstring", "line": 9,
+      "detail": "函数 no_docstring 缺 docstring", "suggestion": "补一句职责说明", "severity": "info" },
+    { "id": "V2", "rule": "R_NO_DOCSTRING", "node": "f_bad_too_long", "line": 16,
+      "detail": "函数 too_long 缺 docstring", "suggestion": "补一句职责说明", "severity": "info" },
+    { "id": "V3", "rule": "R_BARE_EXCEPT", "node": "f_bad_bare_except", "line": 46,
+      "detail": "裸 except 会吞掉所有异常", "suggestion": "明确捕获具体异常类型", "severity": "warning" },
+    { "id": "V4", "rule": "R_FUNC_LEN", "node": "f_bad_too_long", "line": 16,
+      "detail": "函数 too_long 9 行，超 5 行硬线", "suggestion": "拆成子函数", "severity": "warning" }
+  ],
+  "findings": [
+    { "id": "F1", "severity": "error", "type": "logic_bug", "node": "f_caller_main_flow", "line": 9,
+      "title": "返回值语义不清", "detail": "main_flow 返回 helper()+1，但未处理 helper 可能为负数的情形", "suggestion": "明确边界并加校验" }
+  ]
+}
