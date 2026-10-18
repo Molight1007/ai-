@@ -79,7 +79,7 @@ def collect_files(root: str) -> list[dict]:
     out: list[dict] = []
     for p in iter_py_files(root):
         rp = _rel(root, p)
-        with open(p, "r", encoding="utf-8") as fp:
+        with open(p, "r", encoding="utf-8-sig") as fp:
             out.append({"path": rp, "content": fp.read()})
     return out
 
@@ -98,6 +98,8 @@ def _signature(lines: list[str], node: ast.AST) -> str:
 
 
 def parse_source(rp: str, src: str) -> dict:
+    if src.startswith("\ufeff"):
+        src = src[1:]  # 去掉 UTF-8 BOM，ast.parse 不接受非打印字符
     lines = src.splitlines()
     tree = ast.parse(src)
 
@@ -146,7 +148,7 @@ def parse_source(rp: str, src: str) -> dict:
 
 def scan_file(root: str, path: str) -> dict:
     rp = _rel(root, path)
-    with open(path, "r", encoding="utf-8") as fp:
+    with open(path, "r", encoding="utf-8-sig") as fp:
         src = fp.read()
     return parse_source(rp, src)
 
@@ -211,11 +213,11 @@ def _assemble(metas: list[dict], root_name: str, violations) -> dict:
         base = m["path"].rsplit(".", 1)[0]
         file_ids[m["path"]] = idgen.gen("f_" + base)
 
-    # 函数 id（全局唯一）
-    func_ids: dict[tuple[str, str], str] = {}
+    # 函数 id（全局唯一；用文件内序号做 key，避免同名方法如 __init__/to_dict 冲突）
+    func_ids: dict[tuple[str, int], str] = {}
     for m in metas:
-        for fn in m["functions"]:
-            func_ids[(m["path"], fn["name"])] = idgen.gen(
+        for idx, fn in enumerate(m["functions"]):
+            func_ids[(m["path"], idx)] = idgen.gen(
                 file_ids[m["path"]] + "_" + fn["name"]
             )
 
@@ -250,11 +252,11 @@ def _assemble(metas: list[dict], root_name: str, violations) -> dict:
             "hash": m.get("hash"),
             "functions": [
                 {
-                    "id": func_ids[(m["path"], fn["name"])],
+                    "id": func_ids[(m["path"], idx)],
                     "name": fn["name"], "line": fn["line"], "end_line": fn["end_line"],
                     "signature": fn["signature"], "summary": fn["doc"],
                 }
-                for fn in m["functions"]
+                for idx, fn in enumerate(m["functions"])
             ],
         })
 
@@ -291,12 +293,17 @@ def _assemble(metas: list[dict], root_name: str, violations) -> dict:
                     "from": file_ids[m["path"]], "to": file_ids[target], "type": "import",
                 })
 
-    # rule_violations（映射 node）
+    # rule_violations（映射 node，按函数起始行精确匹配，避免同名方法歧义）
+    line_to_func: dict[tuple[str, int], str] = {}
+    for m in metas:
+        for idx, fn in enumerate(m["functions"]):
+            line_to_func[(m["path"], fn["line"])] = func_ids[(m["path"], idx)]
+
     rvs: list[dict] = []
     for v in violations:
         node = None
-        if v.name and (v.path, v.name) in func_ids:
-            node = func_ids[(v.path, v.name)]
+        if v.name and v.line and (v.path, v.line) in line_to_func:
+            node = line_to_func[(v.path, v.line)]
         elif v.path in file_ids:
             node = file_ids[v.path]
         if node:
@@ -341,10 +348,15 @@ def _assemble(metas: list[dict], root_name: str, violations) -> dict:
 def build_ir(root: str) -> dict:
     root = os.path.abspath(root)
     root_name = os.path.basename(root.rstrip("/\\")) or "project"
-    metas = [scan_file(root, p) for p in iter_py_files(root)]
+    metas: list[dict] = []
+    for p in iter_py_files(root):
+        try:
+            metas.append(scan_file(root, p))
+        except (SyntaxError, UnicodeDecodeError):
+            continue  # 单个文件解析失败不中断整个项目
     metas.sort(key=lambda m: m["path"])
     if not metas:
-        raise ValueError(f"目录下没有 .py 文件：{root}")
+        raise ValueError(f"目录下没有可解析的 .py 文件：{root}")
     violations = analyze_rules(root, load_rules())
     ir = _assemble(metas, root_name, violations)
     readme = find_readme(root)

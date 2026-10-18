@@ -53,6 +53,9 @@ def enrich(ir: dict, file_contents: dict[str, str] | None = None,
     return ir
 
 
+CONTENT_BUDGET = 40000  # 文件源码总字符预算，超出的只给结构+docstring，防止大项目爆上下文
+
+
 def _build_prompt(ir: dict, file_contents: dict[str, str],
                   focus_paths: list[str] | None = None) -> str:
     lines = [f"项目名：{ir['meta']['project']}\n"]
@@ -63,9 +66,9 @@ def _build_prompt(ir: dict, file_contents: dict[str, str],
         lines.append(f"- {m['id']} label={m['label']}")
     lines.append("\n文件与函数：")
     for f in ir["files"]:
-        lines.append(f"- {f['id']} path={f['path']} doc={f.get('summary') or ''}")
+        lines.append(f"- {f['id']} path={f['path']} doc={(f.get('summary') or '')[:60]}")
         for fn in f.get("functions", []):
-            lines.append(f"    {fn['id']} name={fn['name']} doc={fn.get('summary') or ''}")
+            lines.append(f"    {fn['id']} name={fn['name']} doc={(fn.get('summary') or '')[:60]}")
     if focus_paths is not None:
         lines.append("\n【增量更新】以下文件有变化，请只更新这些文件的语义，其余文件保持已有语义不变：")
         for path in focus_paths:
@@ -74,9 +77,20 @@ def _build_prompt(ir: dict, file_contents: dict[str, str],
                 lines.append(file_contents[path][:3000])
     else:
         lines.append("\n关键源码（截断）：")
+        budget = CONTENT_BUDGET
+        shown = 0
         for path, content in file_contents.items():
+            chunk = content[:3000]
             lines.append(f"=== {path} ===")
-            lines.append(content[:3000])
+            lines.append(chunk)
+            shown += 1
+            budget -= len(chunk)
+            if budget <= 0:
+                lines.append(
+                    f"...（共 {len(file_contents)} 个文件，已展示 {shown} 个，"
+                    f"其余请基于上方文件结构与 docstring 补全语义）"
+                )
+                break
     return "\n".join(lines)
 
 
