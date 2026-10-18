@@ -3,9 +3,9 @@ import { Diagram } from './Diagram'
 import { CodePanel } from './CodePanel'
 import { FunctionDetail } from './FunctionDetail'
 import { IssuesPanel, type IssueItem } from './IssuesPanel'
-import { analyzeFiles, configureLlm, loadIR, loadLlmStatus, shutdownServer, updateIr, type LlmConfig, type LlmStatus } from './api'
+import { analyzeFiles, analyzeRoot, configureLlm, loadLlmStatus, shutdownServer, updateIr, type LlmConfig, type LlmStatus } from './api'
 import { ProjectInput } from './ProjectInput'
-import { pickDirectory } from './fs'
+import { pickDirectory, type ProjectFile } from './fs'
 import { SAMPLE_IR } from './data'
 import type { DiagramNode, DiagramEdge } from './layout'
 import type { FileNode, IR, Module } from './types'
@@ -70,11 +70,20 @@ export default function App() {
     loadLlmStatus().then((s) => setLlmStatus(s))
   }, [])
 
-  function analyze(r: string) {
-    setRoot(r)
-    setIr(null)
+  async function analyze(r: string) {
     setError(null)
-    loadIR(r).then(setIr).catch((e) => setError(e instanceof Error ? e.message : String(e)))
+    setAnalyzing(true)
+    try {
+      const ir = await analyzeRoot(r)
+      setFileContent(null)
+      setRoot(r)
+      setIr(ir)
+      setPath(['project'])
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setAnalyzing(false)
+    }
   }
 
   function loadDemo() {
@@ -86,9 +95,19 @@ export default function App() {
 
   async function doPick() {
     setError(null)
+    let pickedResult: { project: string; files: ProjectFile[]; readme?: string }
+    try {
+      // 先弹文件夹选择对话框：必须在任何状态切换之前，保证浏览器 user activation 有效
+      pickedResult = await pickDirectory()
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e)
+      if (/abort/i.test(msg)) return // 用户取消选择，静默返回
+      setError(msg)
+      return
+    }
     setAnalyzing(true)
     try {
-      const { project, files: picked, readme } = await pickDirectory()
+      const { project, files: picked, readme } = pickedResult
       if (!picked.length) {
         setError('所选目录没有 .py 文件')
         return

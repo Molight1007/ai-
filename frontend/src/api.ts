@@ -5,16 +5,11 @@ import { FILE_CONTENTS, SAMPLE_IR } from './data'
 import type { ProjectFile } from './fs'
 import type { IR } from './types'
 
-async function postAnalyze(
-  endpoint: string,
-  files: ProjectFile[],
-  project: string,
-  readme?: string,
-): Promise<IR> {
+async function postJSON(endpoint: string, body: unknown): Promise<IR> {
   const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ files, project, readme }),
+    body: JSON.stringify(body),
   })
   if (!res.ok) throw new Error(`分析失败（${res.status}）`)
   const data = await res.json()
@@ -30,7 +25,11 @@ export function analyzeFiles(
   project: string,
   readme?: string,
 ): Promise<IR> {
-  return postAnalyze('/api/analyze', files, project, readme)
+  return postJSON('/api/analyze', { files, project, readme })
+}
+
+export function analyzeRoot(root: string): Promise<IR> {
+  return postJSON('/api/analyze', { root })
 }
 
 export async function updateIr(

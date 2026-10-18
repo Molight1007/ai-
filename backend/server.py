@@ -22,7 +22,12 @@ import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from backend.builder.builder import build_ir_from_files, load_or_build_ir
+from backend.builder.builder import (
+    build_ir_from_files,
+    collect_files,
+    find_readme,
+    load_or_build_ir,
+)
 from backend.enrich import copy_unchanged, enrich
 from backend.llm import has_key, load_config, save_config
 
@@ -97,20 +102,39 @@ class Handler(BaseHTTPRequestHandler):
         return json.loads(body.decode("utf-8"))
 
     def _analyze(self):
-        """单一分析通道：静态扫描（结构/违规）+ LLM 语义（按 README 定位板块）→ 完整 IR。"""
+        """单一分析通道：静态扫描 + LLM 语义 → 完整 IR。
+
+        两种输入：files（前端点选读好的内存文件）或 root（后端代读磁盘）。
+        """
         try:
             data = self._read_body()
-            files = data.get("files", [])
-            if not files:
-                self._json({"error": "所选目录没有 .py 文件"}, 400)
-                return
             if not has_key():
                 self._json({"error": "请先配置 DeepSeek API Key"}, 400)
                 return
-            ir = build_ir_from_files(
-                files, data.get("project", "project"), readme=data.get("readme"),
-            )
-            file_contents = {f["path"]: f["content"] for f in files}
+            files = data.get("files")
+            root = data.get("root")
+            project = data.get("project", "project")
+            readme = data.get("readme")
+            if files:
+                ir = build_ir_from_files(files, project, readme=readme)
+                file_contents = {f["path"]: f["content"] for f in files}
+            elif root:
+                root_abs = os.path.abspath(root)
+                if not os.path.isdir(root_abs):
+                    self._json({"error": f"目录不存在：{root}"}, 400)
+                    return
+                files = collect_files(root_abs)
+                if not files:
+                    self._json({"error": f"目录下没有 .py 文件：{root}"}, 400)
+                    return
+                ir = build_ir_from_files(
+                    files, os.path.basename(root_abs) or project,
+                    readme=readme or find_readme(root_abs),
+                )
+                file_contents = {f["path"]: f["content"] for f in files}
+            else:
+                self._json({"error": "缺少 files 或 root"}, 400)
+                return
             ir = enrich(ir, file_contents)
             self._json(ir)
         except Exception as e:  # noqa: BLE001 —— 接口要兜底返回错误

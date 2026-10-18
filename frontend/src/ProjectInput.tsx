@@ -12,7 +12,7 @@ const PROVIDERS: Provider[] = [
   {
     name: 'DeepSeek',
     base_url: 'https://api.deepseek.com',
-    models: ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4.1-flash'],
+    models: ['deepseek-v4-pro', 'deepseek-flash', 'deepseek-chat', 'deepseek-reasoner'],
   },
   {
     name: '通义千问 Qwen',
@@ -223,6 +223,7 @@ export function ProjectInput({
           <input
             className="pi-field mono"
             placeholder="例如 D:/my-project"
+            autoComplete="off"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {

@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import os
 import tomllib
+import urllib.error
 import urllib.request
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "llm.toml")
@@ -69,6 +70,20 @@ def chat(messages: list[dict], config: dict | None = None) -> str:
         },
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=int(cfg.get("timeout", 180))) as resp:
-        data = json.loads(resp.read().decode("utf-8"))
+    try:
+        with urllib.request.urlopen(req, timeout=int(cfg.get("timeout", 180))) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        # 透传大模型 API 的真实错误（key 无效 / 模型名不存在等），不吞成 "HTTP 400"
+        body = e.read().decode("utf-8", "replace")
+        msg = body[:300]
+        try:
+            err = json.loads(body)
+            if isinstance(err.get("error"), dict):
+                msg = err["error"].get("message") or msg
+            elif err.get("error"):
+                msg = str(err["error"])
+        except Exception:
+            pass
+        raise RuntimeError(f"大模型 API 返回错误（HTTP {e.code}）：{msg}") from e
     return data["choices"][0]["message"]["content"]

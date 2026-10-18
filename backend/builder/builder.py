@@ -74,6 +74,16 @@ def iter_py_files(root: str):
                 yield os.path.join(dirpath, fn)
 
 
+def collect_files(root: str) -> list[dict]:
+    """读取目录下全部 .py 文件为内存列表 [{path, content}]（供 /api/analyze 的 root 模式）。"""
+    out: list[dict] = []
+    for p in iter_py_files(root):
+        rp = _rel(root, p)
+        with open(p, "r", encoding="utf-8") as fp:
+            out.append({"path": rp, "content": fp.read()})
+    return out
+
+
 def _rel(root: str, path: str) -> str:
     return os.path.relpath(path, root).replace("\\", "/")
 
