@@ -239,6 +239,64 @@ body {
   border-color: #185fa5;
 }
 
+.cap-detail {
+  flex: none;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  padding: 12px 14px;
+  max-height: 42%;
+  overflow: auto;
+}
+
+.cap-detail-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.cap-detail-title {
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.cap-detail-close {
+  cursor: pointer;
+  font-size: 18px;
+  opacity: 0.6;
+}
+
+.cap-detail-summary {
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.cap-detail-desc {
+  font-size: 12.5px;
+  color: var(--muted);
+  line-height: 1.6;
+  margin-bottom: 10px;
+  white-space: pre-wrap;
+}
+
+.cap-detail-files {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cap-file {
+  font-size: 12px;
+  font-family: ui-monospace, Consolas, monospace;
+  color: var(--accent);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
 .module-bar {
   flex: none;
   display: flex;

@@ -20,17 +20,19 @@ SYSTEM_PROMPT = """你是一名代码架构分析专家。给定一个 Python �
 {
   "modules": [{"id": "模块id", "layer": "L0-L5", "summary": "一句话职责", "description": "详细功能说明"}],
   "files": [{"id": "文件id", "description": "详细功能说明"}],
+  "capabilities": [{"id": "能力层id", "label": "能力层名", "summary": "该层一句话", "nodes": [{"id": "功能id", "label": "功能名", "summary": "一句话", "detail": "详解(数量/上限/关键判据)", "files": ["文件id1", "文件id2"]}]}],
   "findings": [{"severity": "error|warning|info", "node": "函数或文件id", "line": 行号, "title": "问题标题", "detail": "详情", "suggestion": "修复建议"}],
   "flows": [{"label": "主流程名", "steps": ["函数id1", "函数id2"]}]
 }
 
 规则：
 - 结合「项目概述（README）」理解项目定位，据此划分模块、写出准确的 summary/description
-- 只引用骨架里给出的 id，绝不发明新 id
+- 只引用骨架里给出的 id，绝不发明新 id（capabilities 的 nodes[].files 也只能引用骨架文件 id）
 - layer 取值：L0 纯算法 / L1 工具 / L2 业务 / L3 契约 / L4 编排 / L5 入口
+- capabilities 是「能力架构图」：按能力的推进顺序组织（如 理解 → 生成 → 验证 → 收口），每个能力层是一个横向泳道，其下是具体功能节点；只覆盖核心业务能力（3~6 个能力层、每层 2~6 个功能），不要塞入文档/归档/工具类文件
 - findings 只报告确定或高度可疑的 bug（逻辑错误、边界遗漏、资源泄漏等），不要泛泛而谈风格问题
 - flows 描述核心调用链，steps 按调用顺序给出函数 id
-- 用中文书写 summary / description / title / detail / suggestion"""
+- 用中文书写 summary / description / label / title / detail / suggestion"""
 
 
 OVERVIEW_PROMPT = """你是代码架构分析师。给定一个 Python 项目的模块、文件与函数结构（含 docstring）和部分源码，请用 200~300 字中文概述这个项目：它是做什么的、由哪些核心模块组成、整体架构与主流程。只输出概述正文，不要标题、不要 markdown 列表符号。"""
@@ -187,6 +189,44 @@ def _apply_patch(ir: dict, patch: dict) -> None:
                 "id": f"flow_{len(ir.get('flows', []))}", "label": p.get("label", "主流程"),
                 "steps": steps,
             })
+
+    # capabilities（能力架构：能力层 → 功能节点，功能视图用）
+    seen: set[str] = set()
+
+    def uniq(base: str) -> str:
+        if base not in seen:
+            seen.add(base)
+            return base
+        k = 1
+        while f"{base}_{k}" in seen:
+            k += 1
+        name = f"{base}_{k}"
+        seen.add(name)
+        return name
+
+    caps: list[dict] = []
+    for i, c in enumerate(patch.get("capabilities", [])):
+        nodes = []
+        for j, n in enumerate(c.get("nodes", [])):
+            files = [fid for fid in (n.get("files") or []) if fid in valid_nodes]
+            if not files:
+                continue
+            nodes.append({
+                "id": uniq(n.get("id") or f"cap{i}_n{j}"),
+                "label": n.get("label", "功能"),
+                "summary": n.get("summary", ""),
+                "detail": n.get("detail", ""),
+                "files": files,
+            })
+        if nodes:
+            caps.append({
+                "id": uniq(c.get("id") or f"cap_{i}"),
+                "label": c.get("label", f"能力层{i + 1}"),
+                "summary": c.get("summary", ""),
+                "nodes": nodes,
+            })
+    if caps:
+        ir["capabilities"] = caps
 
 
 def copy_unchanged(old_ir: dict, new_ir: dict) -> set[str]:

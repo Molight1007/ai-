@@ -95,6 +95,22 @@ export interface IR {
   dependencies?: Dependency[]
   module_dependencies?: Dependency[]
   flows?: Flow[]
+  capabilities?: Capability[]
   rule_violations?: RuleViolation[]
   findings?: Finding[]
+}
+
+export interface Capability {
+  id: string
+  label: string
+  summary?: string
+  nodes: CapabilityNode[]
+}
+
+export interface CapabilityNode {
+  id: string
+  label: string
+  summary?: string
+  detail?: string
+  files: string[]
 }

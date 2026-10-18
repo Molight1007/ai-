@@ -8,7 +8,7 @@ import { ProjectInput } from './ProjectInput'
 import { pickDirectory, type ProjectFile } from './fs'
 import { SAMPLE_IR } from './data'
 import type { DiagramNode, DiagramEdge } from './layout'
-import type { FileNode, IR, Module } from './types'
+import type { CapabilityNode, FileNode, IR, Module } from './types'
 
 type View = 'code' | 'function' | 'review'
 
@@ -52,6 +52,7 @@ function AnalyzingPane() {
 export default function App() {
   const [view, setView] = useState<View>('code')
   const [category, setCategory] = useState<'core' | 'tools' | 'docs'>('core')
+  const [capNode, setCapNode] = useState<CapabilityNode | null>(null)
   const [path, setPath] = useState<string[]>(['project'])
   const [hl, setHl] = useState<{ fileId: string; line?: number } | null>(null)
   const [root, setRoot] = useState<string | null>(null)
@@ -318,6 +319,31 @@ export default function App() {
     .filter((d) => visibleIds.has(d.from) && visibleIds.has(d.to))
     .map((d) => ({ from: d.from, to: d.to }))
 
+  // ---- 能力架构图（功能视图：能力层 → 功能节点）----
+  const capNodes: DiagramNode[] = []
+  const capEdges: DiagramEdge[] = []
+  const capNodeMap = new Map<string, CapabilityNode>()
+  for (const cap of ir.capabilities ?? []) {
+    capNodes.push({
+      id: cap.id,
+      label: cap.label,
+      sub: cap.summary ? truncate(cap.summary, 16) : `${cap.nodes.length} 功能`,
+      width: 230,
+      height: 48,
+    })
+    for (const n of cap.nodes) {
+      capNodeMap.set(n.id, n)
+      capNodes.push({
+        id: n.id,
+        label: n.label,
+        sub: truncate(n.summary ?? '', 12),
+        width: 170,
+        height: 52,
+      })
+      capEdges.push({ from: cap.id, to: n.id })
+    }
+  }
+
   // ---- L2 ----
   let currentModule: Module | undefined
   let fileNodes: DiagramNode[] = []
@@ -390,14 +416,57 @@ export default function App() {
           </div>
         )}
         <div className="diagram-wrap">
-          <Diagram
-            nodes={moduleNodes}
-            edges={moduleEdges}
-            selectedId={path[1]}
-            search={search}
-            onNodeClick={(id) => setPath(['project', id])}
-          />
+          {view === 'function' && category === 'core' && (ir.capabilities?.length ?? 0) > 0 ? (
+            <Diagram
+              nodes={capNodes}
+              edges={capEdges}
+              search={search}
+              onNodeClick={(id) => {
+                const n = capNodeMap.get(id)
+                if (n) setCapNode(n)
+              }}
+            />
+          ) : (
+            <Diagram
+              nodes={moduleNodes}
+              edges={moduleEdges}
+              selectedId={path[1]}
+              search={search}
+              onNodeClick={(id) => setPath(['project', id])}
+            />
+          )}
         </div>
+        {capNode && (
+          <div className="cap-detail">
+            <div className="cap-detail-head">
+              <span className="cap-detail-title">{capNode.label}</span>
+              <span className="cap-detail-close" onClick={() => setCapNode(null)}>
+                ×
+              </span>
+            </div>
+            {capNode.summary && <div className="cap-detail-summary">{capNode.summary}</div>}
+            {capNode.detail && <div className="cap-detail-desc">{capNode.detail}</div>}
+            <div className="cap-detail-files">
+              {capNode.files.map((fid) => {
+                const f = fileMap.get(fid)
+                if (!f) return null
+                return (
+                  <button
+                    key={fid}
+                    className="cap-file"
+                    onClick={() => {
+                      setView('code')
+                      setPath(['project', f.module, fid])
+                      setCapNode(null)
+                    }}
+                  >
+                    {f.path}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        )}
       </div>
     )
   } else if (level === 2 && currentModule) {
