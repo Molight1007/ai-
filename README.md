@@ -29,14 +29,19 @@ LLM（非确定，谁都能当）──产出──▶ 类型化 IR（唯一契�
 
 ## 快速开始
 
-```bash
-# 1. 后端（扫描项目 + 提供文件内容，零第三方依赖）
-python -m backend.server <项目目录> --port 8000
+**一键启动**（Windows 双击 `start.bat`，或命令行）：
 
-# 2. 前端（Node 22+）
-cd frontend
-npm install
-npm run dev          # 打开 http://127.0.0.1:5173
+```bash
+python start.py
+```
+
+脚本会自动完成：安装前端依赖（首次）→ 启动后端 → 启动前端 → 打开浏览器。
+
+手动启动（两步）：
+
+```bash
+python -m backend.server --port 8000        # 后端（零第三方依赖）
+cd frontend && npm install && npm run dev   # 前端（Node 22+）
 ```
 
 前端经 vite proxy（`/api` → `:8000`）取真实数据；后端未启动时自动回退到内置示例数据。
