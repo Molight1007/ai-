@@ -5,11 +5,15 @@ import { FILE_CONTENTS, SAMPLE_IR } from './data'
 import type { ProjectFile } from './fs'
 import type { IR } from './types'
 
-export async function analyzeFiles(files: ProjectFile[], project: string): Promise<IR> {
+export async function analyzeFiles(
+  files: ProjectFile[],
+  project: string,
+  readme?: string,
+): Promise<IR> {
   const res = await fetch('/api/analyze', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ files, project }),
+    body: JSON.stringify({ files, project, readme }),
   })
   if (!res.ok) throw new Error(`分析失败（${res.status}）`)
   const data = await res.json()

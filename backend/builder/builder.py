@@ -16,6 +16,7 @@ from __future__ import annotations
 import ast
 import json
 import os
+import re
 import sys
 
 from backend.ir.validate import errors_only, validate
@@ -147,6 +148,46 @@ def _resolve_import(modname: str, path_set: set[str]) -> str | None:
             if cand in path_set:
                 return cand
     return None
+
+
+README_NAMES = ("README.md", "readme.md", "README.txt", "readme.txt", "README", "readme")
+
+
+def find_readme(root: str) -> str | None:
+    """在项目根目录查找 README，返回其内容；没有则 None。"""
+    for name in README_NAMES:
+        path = os.path.join(root, name)
+        if os.path.isfile(path):
+            try:
+                with open(path, "r", encoding="utf-8") as fp:
+                    return fp.read()
+            except (OSError, UnicodeDecodeError):
+                continue
+    return None
+
+
+def extract_overview(text: str, limit: int = 800) -> str:
+    """从 README 提取项目概述：去 Markdown 噪音，取有意义文本，截断。"""
+    lines: list[str] = []
+    in_code = False
+    for raw in text.splitlines():
+        line = raw.strip()
+        if line.startswith("```"):
+            in_code = not in_code
+            continue
+        if in_code:
+            continue
+        if not line or line.startswith(("#", "![", "[![", "---", "***", "<!--")):
+            continue
+        line = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", line)   # 图片
+        line = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", line)  # 链接保留文字
+        line = line.strip("`*_>| ")
+        if line:
+            lines.append(line)
+    text = " ".join(lines)
+    if len(text) > limit:
+        text = text[:limit] + "…"
+    return text
 
 
 def _assemble(metas: list[dict], root_name: str, violations) -> dict:
@@ -292,13 +333,18 @@ def build_ir(root: str) -> dict:
     if not metas:
         raise ValueError(f"目录下没有 .py 文件：{root}")
     violations = analyze_rules(root, load_rules())
-    return _assemble(metas, root_name, violations)
+    ir = _assemble(metas, root_name, violations)
+    readme = find_readme(root)
+    if readme:
+        ir["meta"]["overview"] = extract_overview(readme)
+    return ir
 
 
-def build_ir_from_files(files: list[dict], project_name: str = "project") -> dict:
+def build_ir_from_files(files: list[dict], project_name: str = "project", readme: str | None = None) -> dict:
     """从内存文件列表构建 IR（files = [{path, content}]）。
 
     供「前端点选文件夹 → 上传文件内容」场景使用，后端无需读磁盘。
+    readme 为项目根目录 README 内容（可选），用于生成项目概述。
     """
     metas = []
     for f in files:
@@ -310,7 +356,10 @@ def build_ir_from_files(files: list[dict], project_name: str = "project") -> dic
     if not metas:
         raise ValueError("没有可解析的 .py 文件")
     violations = analyze_from_files(files, load_rules())
-    return _assemble(metas, project_name, violations)
+    ir = _assemble(metas, project_name, violations)
+    if readme:
+        ir["meta"]["overview"] = extract_overview(readme)
+    return ir
 
 
 ENRICH_FILENAME = "enrich.ir.json"

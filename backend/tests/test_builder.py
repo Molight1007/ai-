@@ -136,6 +136,14 @@ class TestBuildFromFiles(unittest.TestCase):
         rules = {v["rule"] for v in ir["rule_violations"]}
         self.assertIn("R_BARE_EXCEPT", rules)
 
+    def test_build_from_memory_with_readme(self):
+        files = [{"path": "a.py", "content": 'def f():\n    """doc"""\n    return 1\n'}]
+        readme = "# My Project\n\n这是一个演示项目。\n\n## 安装\n\n```bash\npip install\n```\n"
+        ir = build_ir_from_files(files, "demo", readme=readme)
+        self.assertIn("overview", ir["meta"])
+        self.assertIn("演示项目", ir["meta"]["overview"])
+        self.assertNotIn("安装", ir["meta"]["overview"])  # 标题与代码块被剔除
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -54,7 +54,7 @@ export default function App() {
   async function pickFolder() {
     setError(null)
     try {
-      const { project, files: picked } = await pickDirectory()
+      const { project, files: picked, readme } = await pickDirectory()
       if (!picked.length) {
         setError('所选目录没有 .py 文件')
         return
@@ -64,7 +64,7 @@ export default function App() {
       setRoot(null)
       setIr(null)
       setPath(['project'])
-      analyzeFiles(picked, project).then(setIr).catch((e) => {
+      analyzeFiles(picked, project, readme).then(setIr).catch((e) => {
         setError(e instanceof Error ? e.message : String(e))
       })
     } catch (e) {
@@ -244,14 +244,22 @@ export default function App() {
   let content: JSX.Element | null = null
   if (level === 1) {
     content = (
-      <div className="diagram-wrap">
-        <Diagram
-          nodes={moduleNodes}
-          edges={moduleEdges}
-          selectedId={path[1]}
-          search={search}
-          onNodeClick={(id) => setPath(['project', id])}
-        />
+      <div className="l2-wrap">
+        {ir.meta.overview && (
+          <div className="module-bar">
+            <span className="module-bar-label">项目概述</span>
+            <span className="module-bar-desc">{ir.meta.overview}</span>
+          </div>
+        )}
+        <div className="diagram-wrap">
+          <Diagram
+            nodes={moduleNodes}
+            edges={moduleEdges}
+            selectedId={path[1]}
+            search={search}
+            onNodeClick={(id) => setPath(['project', id])}
+          />
+        </div>
       </div>
     )
   } else if (level === 2 && currentModule) {

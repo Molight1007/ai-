@@ -64,7 +64,8 @@ class Handler(BaseHTTPRequestHandler):
             data = json.loads(body.decode("utf-8"))
             files = data.get("files", [])
             project = data.get("project", "project")
-            ir = build_ir_from_files(files, project)
+            readme = data.get("readme")
+            ir = build_ir_from_files(files, project, readme=readme)
             self._json(ir)
         except Exception as e:  # noqa: BLE001 —— 接口要兜底返回错误
             self._json({"error": str(e)}, 500)

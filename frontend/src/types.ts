@@ -17,6 +17,7 @@ export interface Meta {
   generated_at?: string
   rules_version?: string
   stats?: MetaStats
+  overview?: string
 }
 
 export interface Module {
