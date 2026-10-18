@@ -5,12 +5,13 @@ import { FILE_CONTENTS, SAMPLE_IR } from './data'
 import type { ProjectFile } from './fs'
 import type { IR } from './types'
 
-export async function analyzeFiles(
+async function postAnalyze(
+  endpoint: string,
   files: ProjectFile[],
   project: string,
   readme?: string,
 ): Promise<IR> {
-  const res = await fetch('/api/analyze', {
+  const res = await fetch(endpoint, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ files, project, readme }),
@@ -22,6 +23,30 @@ export async function analyzeFiles(
     return data as IR
   }
   throw new Error('返回数据格式不符')
+}
+
+export function analyzeFiles(
+  files: ProjectFile[],
+  project: string,
+  readme?: string,
+): Promise<IR> {
+  return postAnalyze('/api/analyze', files, project, readme)
+}
+
+export function enrichFiles(
+  files: ProjectFile[],
+  project: string,
+  readme?: string,
+): Promise<IR> {
+  return postAnalyze('/api/enrich', files, project, readme)
+}
+
+export async function shutdownServer(): Promise<void> {
+  try {
+    await fetch('/api/shutdown', { method: 'POST' })
+  } catch {
+    // 后端已关闭或未启动
+  }
 }
 
 export async function loadIR(root: string | null): Promise<IR> {

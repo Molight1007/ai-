@@ -598,6 +598,24 @@ body {
   cursor: pointer;
 }
 
+.pi-pick-row {
+  display: flex;
+  gap: 8px;
+}
+
+.pi-pick-alt {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+}
+
+.pi-shutdown {
+  margin-top: 24px;
+  color: #a32d2d;
+  font-size: 12px;
+  cursor: pointer;
+}
+
 .pi-divider {
   color: var(--hint);
   font-size: 12px;

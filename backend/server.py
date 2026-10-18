@@ -18,10 +18,12 @@ from __future__ import annotations
 import json
 import os
 import sys
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from backend.builder.builder import build_ir_from_files, load_or_build_ir
+from backend.enrich import enrich
 
 PROJECT_ROOT = os.path.abspath(os.environ.get("PROJECT_ROOT", "."))
 
@@ -54,21 +56,46 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/analyze":
             self._analyze()
+        elif parsed.path == "/api/enrich":
+            self._enrich()
+        elif parsed.path == "/api/shutdown":
+            self._shutdown()
         else:
             self._json({"error": "not found"}, 404)
 
+    def _read_body(self) -> dict:
+        length = int(self.headers.get("Content-Length", 0))
+        body = self.rfile.read(length) if length else b"{}"
+        return json.loads(body.decode("utf-8"))
+
     def _analyze(self):
         try:
-            length = int(self.headers.get("Content-Length", 0))
-            body = self.rfile.read(length) if length else b"{}"
-            data = json.loads(body.decode("utf-8"))
-            files = data.get("files", [])
-            project = data.get("project", "project")
-            readme = data.get("readme")
-            ir = build_ir_from_files(files, project, readme=readme)
+            data = self._read_body()
+            ir = build_ir_from_files(
+                data.get("files", []), data.get("project", "project"),
+                readme=data.get("readme"),
+            )
             self._json(ir)
         except Exception as e:  # noqa: BLE001 —— 接口要兜底返回错误
             self._json({"error": str(e)}, 500)
+
+    def _enrich(self):
+        try:
+            data = self._read_body()
+            files = data.get("files", [])
+            ir = build_ir_from_files(
+                files, data.get("project", "project"), readme=data.get("readme"),
+            )
+            file_contents = {f["path"]: f["content"] for f in files}
+            ir = enrich(ir, file_contents)
+            self._json(ir)
+        except Exception as e:  # noqa: BLE001 —— 接口要兜底返回错误
+            self._json({"error": str(e)}, 500)
+
+    def _shutdown(self):
+        self._json({"ok": True, "message": "server shutting down"})
+        # 先返回响应，再关闭 server（新线程，避免阻塞当前请求）
+        threading.Thread(target=self.server.shutdown, daemon=True).start()
 
     def _ir(self, root: str):
         try:

@@ -3,7 +3,7 @@ import { Diagram } from './Diagram'
 import { CodePanel } from './CodePanel'
 import { FunctionDetail } from './FunctionDetail'
 import { IssuesPanel, type IssueItem } from './IssuesPanel'
-import { analyzeFiles, loadIR } from './api'
+import { analyzeFiles, enrichFiles, loadIR, shutdownServer } from './api'
 import { ProjectInput } from './ProjectInput'
 import { pickDirectory } from './fs'
 import { SAMPLE_IR } from './data'
@@ -36,6 +36,7 @@ export default function App() {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   })
   const [fileContent, setFileContent] = useState<Map<string, string> | null>(null)
+  const [analyzing, setAnalyzing] = useState(false)
 
   function analyze(r: string) {
     setRoot(r)
@@ -51,8 +52,9 @@ export default function App() {
     setPath(['project'])
   }
 
-  async function pickFolder() {
+  async function doPick(useEnrich: boolean) {
     setError(null)
+    setAnalyzing(true)
     try {
       const { project, files: picked, readme } = await pickDirectory()
       if (!picked.length) {
@@ -64,12 +66,20 @@ export default function App() {
       setRoot(null)
       setIr(null)
       setPath(['project'])
-      analyzeFiles(picked, project, readme).then(setIr).catch((e) => {
-        setError(e instanceof Error ? e.message : String(e))
-      })
+      const ir = useEnrich
+        ? await enrichFiles(picked, project, readme)
+        : await analyzeFiles(picked, project, readme)
+      setIr(ir)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setAnalyzing(false)
     }
+  }
+
+  async function shutdown() {
+    await shutdownServer()
+    setError('服务已终止')
   }
 
   function backToInput() {
@@ -85,12 +95,20 @@ export default function App() {
     localStorage.setItem('theme', theme)
   }, [theme])
 
+  if (analyzing) {
+    return (
+      <div className="app">
+        <div className="loading">正在分析项目…（AI 增强可能需要几十秒）</div>
+      </div>
+    )
+  }
+
   if (!ir) {
     if (error) {
-      return <ProjectInput initial={root ?? ''} error={error} onAnalyze={analyze} onPick={pickFolder} onDemo={loadDemo} />
+      return <ProjectInput initial={root ?? ''} error={error} onAnalyze={analyze} onPick={() => doPick(false)} onPickEnrich={() => doPick(true)} onDemo={loadDemo} onShutdown={shutdown} />
     }
     if (root === null) {
-      return <ProjectInput onAnalyze={analyze} onPick={pickFolder} onDemo={loadDemo} />
+      return <ProjectInput onAnalyze={analyze} onPick={() => doPick(false)} onPickEnrich={() => doPick(true)} onDemo={loadDemo} onShutdown={shutdown} />
     }
     return (
       <div className="app">

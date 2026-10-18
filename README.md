@@ -46,14 +46,36 @@ cd frontend && npm install && npm run dev   # 前端（Node 22+）
 
 前端经 vite proxy（`/api` → `:8000`）取真实数据；后端未启动时自动回退到内置示例数据。
 
-## WorkBuddy 语义填充（让图和审查丰满起来）
+## AI 语义填充（让图和审查丰满起来）
 
-`builder` 只产出**骨架 IR**（结构 + 静态违规，确定性）。要让功能视图、审查模式有内容，需补语义字段：
+`builder` 只产出**骨架 IR**（结构 + 静态违规，确定性）。功能视图、审查模式需要语义字段（模块职责 / 功能描述 / bug），有两种填充方式：
 
-1. 跑 Builder 得到骨架：`python -m backend.builder.builder <项目目录>`
-2. 让 LLM（如 WorkBuddy）读骨架 + 源码，补 `layer` / `summary` / `description` / `findings` / `flows`
-3. 把补好的 IR 存为 `<项目目录>/enrich.ir.json`
+### 方式一：DeepSeek API（内置，点「AI 增强分析」）
+
+1. 复制 `backend/llm.toml.example` 为 `backend/llm.toml`，填入你的 Key：
+   ```toml
+   [llm]
+   base_url = "https://api.deepseek.com"
+   model = "deepseek-chat"
+   api_key = "sk-你的key"
+   ```
+   （也可用环境变量 `LLM_API_KEY`）
+2. 前端点「AI 增强分析」选文件夹 → 后端调 LLM 自动补语义
+
+支持任意 OpenAI 兼容端点（OpenAI / DeepSeek / 本地 Ollama 的 `/v1`）。
+
+### 方式二：WorkBuddy 联动（产 enrich.ir.json）
+
+1. 跑 Builder 得骨架：`python -m backend.builder.builder <项目目录>`
+2. 在 WorkBuddy 里让它读骨架 + 源码，补 `layer` / `summary` / `description` / `findings` / `flows`
+3. 存为 `<项目目录>/enrich.ir.json`
 4. 后端 `/api/ir` 会**优先返回 enrich.ir.json**（校验通过时），否则回退骨架
+
+## 前端操作
+
+- **选择文件夹**：骨架分析（结构 + 规则违规，快）
+- **AI 增强分析**：骨架 + LLM 语义填充（慢，需配 API Key）
+- **终止服务**：输入界面底部，一键关停后端
 
 ## 规则引擎（自审核的「机器确定」一半）
 
@@ -76,6 +98,8 @@ backend/
   ir/          # IR 契约 v2 + 校验器（规则码）
   rules/       # 规则引擎（ast + tomllib）
   builder/     # 静态扫描 → 骨架 IR（+ enrich 衔接）
+  llm.py       # LLM 客户端（OpenAI 兼容，标准库 urllib）
+  enrich.py    # 语义填充（LLM → 语义 IR，校验兜底）
   server.py    # 轻量 HTTP server（标准库 http.server，零依赖）
   tests/       # unittest 测试（零依赖）
 frontend/      # React + TS + Vite（图导航 + 三视图）
