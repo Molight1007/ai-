@@ -24,7 +24,7 @@ from urllib.parse import parse_qs, urlparse
 
 from backend.builder.builder import build_ir_from_files, load_or_build_ir
 from backend.enrich import enrich
-from backend.llm import load_config, save_config
+from backend.llm import has_key, load_config, save_config
 
 PROJECT_ROOT = os.path.abspath(os.environ.get("PROJECT_ROOT", "."))
 
@@ -64,8 +64,6 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/analyze":
             self._analyze()
-        elif parsed.path == "/api/enrich":
-            self._enrich()
         elif parsed.path == "/api/llm/config":
             self._llm_config()
         elif parsed.path == "/api/shutdown":
@@ -97,20 +95,16 @@ class Handler(BaseHTTPRequestHandler):
         return json.loads(body.decode("utf-8"))
 
     def _analyze(self):
-        try:
-            data = self._read_body()
-            ir = build_ir_from_files(
-                data.get("files", []), data.get("project", "project"),
-                readme=data.get("readme"),
-            )
-            self._json(ir)
-        except Exception as e:  # noqa: BLE001 —— 接口要兜底返回错误
-            self._json({"error": str(e)}, 500)
-
-    def _enrich(self):
+        """单一分析通道：静态扫描（结构/违规）+ LLM 语义（按 README 定位板块）→ 完整 IR。"""
         try:
             data = self._read_body()
             files = data.get("files", [])
+            if not files:
+                self._json({"error": "所选目录没有 .py 文件"}, 400)
+                return
+            if not has_key():
+                self._json({"error": "请先配置 DeepSeek API Key"}, 400)
+                return
             ir = build_ir_from_files(
                 files, data.get("project", "project"), readme=data.get("readme"),
             )

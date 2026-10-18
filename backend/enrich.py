@@ -25,6 +25,7 @@ SYSTEM_PROMPT = """你是一名代码架构分析专家。给定一个 Python �
 }
 
 规则：
+- 结合「项目概述（README）」理解项目定位，据此划分模块、写出准确的 summary/description
 - 只引用骨架里给出的 id，绝不发明新 id
 - layer 取值：L0 纯算法 / L1 工具 / L2 业务 / L3 契约 / L4 编排 / L5 入口
 - findings 只报告确定或高度可疑的 bug（逻辑错误、边界遗漏、资源泄漏等），不要泛泛而谈风格问题
@@ -50,6 +51,8 @@ def enrich(ir: dict, file_contents: dict[str, str] | None = None) -> dict:
 
 def _build_prompt(ir: dict, file_contents: dict[str, str]) -> str:
     lines = [f"项目名：{ir['meta']['project']}\n"]
+    lines.append(f"项目概述（README）：{ir['meta'].get('overview', '（无 README，请根据代码自行判断）')}")
+    lines.append("")
     lines.append("模块：")
     for m in ir["modules"]:
         lines.append(f"- {m['id']} label={m['label']}")

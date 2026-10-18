@@ -3,7 +3,7 @@ import { Diagram } from './Diagram'
 import { CodePanel } from './CodePanel'
 import { FunctionDetail } from './FunctionDetail'
 import { IssuesPanel, type IssueItem } from './IssuesPanel'
-import { analyzeFiles, configureLlm, enrichFiles, loadIR, loadLlmStatus, shutdownServer } from './api'
+import { analyzeFiles, configureLlm, loadIR, loadLlmStatus, shutdownServer } from './api'
 import { ProjectInput } from './ProjectInput'
 import { pickDirectory } from './fs'
 import { SAMPLE_IR } from './data'
@@ -22,22 +22,20 @@ function truncate(s: string, n: number): string {
 
 const SEV_RANK: Record<string, number> = { error: 0, warning: 1, info: 2 }
 
-function AnalyzingPane({ enriched }: { enriched: boolean }) {
+function AnalyzingPane() {
   const [elapsed, setElapsed] = useState(0)
   useEffect(() => {
     const t = setInterval(() => setElapsed((e) => e + 1), 1000)
     return () => clearInterval(t)
   }, [])
-  const budget = enriched ? 60 : 6
+  const budget = 60
   const pct = Math.min(92, Math.round((elapsed / budget) * 92))
   const stage =
     elapsed < 2
       ? '读取文件…'
       : elapsed < 5
         ? '静态分析：结构抽取 / 规则违规…'
-        : enriched
-          ? 'AI 语义分析：模块职责 / 功能描述 / bug 排查…'
-          : '生成结果…'
+        : 'AI 分析：定位代码板块 / 模块职责 / 功能描述 / bug 排查…'
   return (
     <div className="analyzing">
       <div className="an-title">{stage}</div>
@@ -63,7 +61,7 @@ export default function App() {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   })
   const [fileContent, setFileContent] = useState<Map<string, string> | null>(null)
-  const [analyzing, setAnalyzing] = useState<null | 'basic' | 'enrich'>(null)
+  const [analyzing, setAnalyzing] = useState(false)
   const [llmConfigured, setLlmConfigured] = useState<boolean | null>(null)
 
   useEffect(() => {
@@ -84,9 +82,9 @@ export default function App() {
     setPath(['project'])
   }
 
-  async function doPick(useEnrich: boolean) {
+  async function doPick() {
     setError(null)
-    setAnalyzing(useEnrich ? 'enrich' : 'basic')
+    setAnalyzing(true)
     try {
       const { project, files: picked, readme } = await pickDirectory()
       if (!picked.length) {
@@ -98,14 +96,12 @@ export default function App() {
       setRoot(null)
       setIr(null)
       setPath(['project'])
-      const ir = useEnrich
-        ? await enrichFiles(picked, project, readme)
-        : await analyzeFiles(picked, project, readme)
+      const ir = await analyzeFiles(picked, project, readme)
       setIr(ir)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
-      setAnalyzing(null)
+      setAnalyzing(false)
     }
   }
 
@@ -141,17 +137,17 @@ export default function App() {
   if (analyzing) {
     return (
       <div className="app">
-        <AnalyzingPane enriched={analyzing === 'enrich'} />
+        <AnalyzingPane />
       </div>
     )
   }
 
   if (!ir) {
     if (error) {
-      return <ProjectInput initial={root ?? ''} error={error} llmConfigured={llmConfigured} onAnalyze={analyze} onPick={() => doPick(false)} onPickEnrich={() => doPick(true)} onConfigureKey={configureKey} onDemo={loadDemo} onShutdown={shutdown} />
+      return <ProjectInput initial={root ?? ''} error={error} llmConfigured={llmConfigured} onAnalyze={analyze} onPick={doPick} onConfigureKey={configureKey} onDemo={loadDemo} onShutdown={shutdown} />
     }
     if (root === null) {
-      return <ProjectInput llmConfigured={llmConfigured} onAnalyze={analyze} onPick={() => doPick(false)} onPickEnrich={() => doPick(true)} onConfigureKey={configureKey} onDemo={loadDemo} onShutdown={shutdown} />
+      return <ProjectInput llmConfigured={llmConfigured} onAnalyze={analyze} onPick={doPick} onConfigureKey={configureKey} onDemo={loadDemo} onShutdown={shutdown} />
     }
     return (
       <div className="app">

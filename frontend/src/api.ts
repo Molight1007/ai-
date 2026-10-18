@@ -33,14 +33,6 @@ export function analyzeFiles(
   return postAnalyze('/api/analyze', files, project, readme)
 }
 
-export function enrichFiles(
-  files: ProjectFile[],
-  project: string,
-  readme?: string,
-): Promise<IR> {
-  return postAnalyze('/api/enrich', files, project, readme)
-}
-
 export async function shutdownServer(): Promise<void> {
   try {
     await fetch('/api/shutdown', { method: 'POST' })

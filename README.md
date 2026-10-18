@@ -46,36 +46,32 @@ cd frontend && npm install && npm run dev   # 前端（Node 22+）
 
 前端经 vite proxy（`/api` → `:8000`）取真实数据；后端未启动时自动回退到内置示例数据。
 
-## AI 语义填充（让图和审查丰满起来）
+## AI 语义填充（单一分析通道）
 
-`builder` 只产出**骨架 IR**（结构 + 静态违规，确定性）。功能视图、审查模式需要语义字段（模块职责 / 功能描述 / bug），有两种填充方式：
+工具是**单一通道**：点一下按钮，自动完成「审核文件 → 定位代码板块 → 生成架构图」。
 
-### 方式一：DeepSeek API（内置，点「AI 增强分析」）
+内部流程：
+1. 程序静态扫描（AST）：抽模块/文件/函数/依赖 + 规则违规（机器确定）
+2. 大模型按 **README 概述** 定位 AI 代码板块，补 `layer` / `summary` / `description` / `findings` / `flows`
+3. 校验器兜底，产出一份完整架构图
 
-1. 复制 `backend/llm.toml.example` 为 `backend/llm.toml`，填入你的 Key：
-   ```toml
-   [llm]
-   base_url = "https://api.deepseek.com"
-   model = "deepseek-chat"
-   api_key = "sk-你的key"
-   ```
-   （也可用环境变量 `LLM_API_KEY`）
-2. 前端点「AI 增强分析」选文件夹 → 后端调 LLM 自动补语义
+配置 DeepSeek（前端输入框直接保存，或手动）：
+
+```toml
+# backend/llm.toml（从 llm.toml.example 复制）
+[llm]
+base_url = "https://api.deepseek.com"
+model = "deepseek-chat"
+api_key = "sk-你的key"
+```
 
 支持任意 OpenAI 兼容端点（OpenAI / DeepSeek / 本地 Ollama 的 `/v1`）。
 
-### 方式二：WorkBuddy 联动（产 enrich.ir.json）
-
-1. 跑 Builder 得骨架：`python -m backend.builder.builder <项目目录>`
-2. 在 WorkBuddy 里让它读骨架 + 源码，补 `layer` / `summary` / `description` / `findings` / `flows`
-3. 存为 `<项目目录>/enrich.ir.json`
-4. 后端 `/api/ir` 会**优先返回 enrich.ir.json**（校验通过时），否则回退骨架
-
 ## 前端操作
 
-- **选择文件夹**：骨架分析（结构 + 规则违规，快）
-- **AI 增强分析**：骨架 + LLM 语义填充（慢，需配 API Key）
-- **终止服务**：输入界面底部，一键关停后端
+1. 首次：输入 DeepSeek API Key 并保存（存本地，不提交）
+2. 点「选择文件夹生成架构图」→ 自动出完整图（结构 + 功能 + bug 审查）
+3. 「终止服务」一键关停后端
 
 ## 规则引擎（自审核的「机器确定」一半）
 

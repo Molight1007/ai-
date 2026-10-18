@@ -6,10 +6,9 @@ interface Props {
   llmConfigured: boolean | null
   onAnalyze: (root: string) => void
   onPick: () => void
-  onPickEnrich: () => void
+  onConfigureKey: (key: string) => void
   onDemo: () => void
   onShutdown: () => void
-  onConfigureKey: (key: string) => void
 }
 
 export function ProjectInput({
@@ -18,10 +17,9 @@ export function ProjectInput({
   llmConfigured,
   onAnalyze,
   onPick,
-  onPickEnrich,
+  onConfigureKey,
   onDemo,
   onShutdown,
-  onConfigureKey,
 }: Props) {
   const [value, setValue] = useState(initial ?? '')
   const [keyValue, setKeyValue] = useState('')
@@ -30,31 +28,16 @@ export function ProjectInput({
     <div className="app">
       <div className="project-input">
         <div className="pi-title">AI 代码可视化</div>
-        <div className="pi-sub">把 AI 生成的 Python 代码变成可交互架构图</div>
+        <div className="pi-sub">点一下按钮，自动审核代码并生成完整架构图</div>
 
         <div className="pi-card">
           <div className="pi-card-head">
-            <span className="pi-card-title">快速分析</span>
-            <span className="pi-badge pi-badge-ok">无需配置</span>
-          </div>
-          <div className="pi-card-desc">静态扫描代码结构 + 规则违规检测，不调用 AI，秒出结果</div>
-          <button className="pi-pick" onClick={onPick}>
-            选择文件夹
-          </button>
-        </div>
-
-        <div className="pi-card">
-          <div className="pi-card-head">
-            <span className="pi-card-title">AI 增强分析</span>
+            <span className="pi-card-title">① 配置 DeepSeek API Key</span>
             {llmConfigured === true && <span className="pi-badge pi-badge-ok">已配置</span>}
-            {llmConfigured === false && <span className="pi-badge pi-badge-warn">未配置 Key</span>}
+            {llmConfigured === false && <span className="pi-badge pi-badge-warn">未配置</span>}
             {llmConfigured === null && <span className="pi-badge">检测中…</span>}
           </div>
-          <div className="pi-card-desc">调用大模型补全模块职责、功能说明、语义 bug 排查</div>
-          <button className="pi-pick pi-pick-alt" onClick={onPickEnrich}>
-            选择文件夹并增强
-          </button>
-          {llmConfigured === false && (
+          {llmConfigured === false ? (
             <div className="pi-config">
               <input
                 className="pi-key-input mono"
@@ -69,8 +52,29 @@ export function ProjectInput({
               >
                 保存
               </button>
-              <div className="pi-hint">保存到 backend/llm.toml（已加入 .gitignore，不会提交）</div>
+              <div className="pi-hint">Key 保存在本地 backend/llm.toml，不会提交到 GitHub</div>
             </div>
+          ) : (
+            <div className="pi-card-desc">已就绪，下一步选择项目文件夹即可</div>
+          )}
+        </div>
+
+        <div className="pi-card">
+          <div className="pi-card-head">
+            <span className="pi-card-title">② 选择项目文件夹</span>
+          </div>
+          <div className="pi-card-desc">
+            自动读取代码 + README → 定位 AI 代码板块 → 按规范生成架构图
+          </div>
+          <button
+            className="pi-pick"
+            onClick={onPick}
+            disabled={llmConfigured !== true}
+          >
+            选择文件夹生成架构图
+          </button>
+          {llmConfigured !== true && (
+            <div className="pi-hint">请先完成第 ① 步配置 API Key</div>
           )}
         </div>
 

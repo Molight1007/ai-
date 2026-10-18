@@ -632,6 +632,11 @@ body {
   cursor: pointer;
 }
 
+.pi-pick:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .pi-pick-row {
   display: flex;
   gap: 8px;
