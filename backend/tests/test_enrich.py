@@ -2,7 +2,7 @@
 
 import unittest
 
-from backend.enrich import _apply_patch, _parse_json
+from backend.enrich import _apply_patch, _parse_json, copy_unchanged
 
 
 def _skeleton():
@@ -55,6 +55,60 @@ class TestApplyPatch(unittest.TestCase):
         ir = _skeleton()
         _apply_patch(ir, {"findings": [{"severity": "error", "node": "g_ghost", "title": "x"}]})
         self.assertEqual(ir["findings"], [])
+
+
+class TestCopyUnchanged(unittest.TestCase):
+    def test_preserve_unchanged_semantics(self):
+        old_ir = {
+            "schema_version": 2,
+            "meta": {"project": "p", "language": "python", "generated_by": "builder"},
+            "modules": [{"id": "m1", "label": "模块", "layer": "L2", "summary": "职责", "description": "详", "files": ["f1", "f2"]}],
+            "files": [
+                {"id": "f1", "path": "a.py", "module": "m1", "hash": "h1", "description": "文件1详",
+                 "functions": [{"id": "g1", "name": "f", "summary": "s1", "description": "d1"}]},
+                {"id": "f2", "path": "b.py", "module": "m1", "hash": "h2", "description": "文件2详",
+                 "functions": [{"id": "g2", "name": "g", "summary": "s2", "description": "d2"}]},
+            ],
+        }
+        new_ir = {
+            "schema_version": 2,
+            "meta": {"project": "p", "language": "python", "generated_by": "builder"},
+            "modules": [{"id": "m1", "label": "模块", "files": ["f1", "f2"]}],
+            "files": [
+                {"id": "f1", "path": "a.py", "module": "m1", "hash": "h1",
+                 "functions": [{"id": "g1", "name": "f"}]},
+                {"id": "f2", "path": "b.py", "module": "m1", "hash": "h2_changed",
+                 "functions": [{"id": "g2", "name": "g"}]},
+            ],
+        }
+        unchanged = copy_unchanged(old_ir, new_ir)
+        self.assertEqual(unchanged, {"f1"})
+        # 未变文件 f1 语义保留
+        self.assertEqual(new_ir["files"][0]["description"], "文件1详")
+        self.assertEqual(new_ir["files"][0]["functions"][0]["summary"], "s1")
+        # 变化文件 f2 语义不保留
+        self.assertNotIn("description", new_ir["files"][1])
+        # 模块含变化文件 → 模块语义不保留
+        self.assertNotIn("layer", new_ir["modules"][0])
+
+    def test_all_unchanged_preserves_module(self):
+        old_ir = {
+            "schema_version": 2,
+            "meta": {"project": "p", "language": "python", "generated_by": "builder"},
+            "modules": [{"id": "m1", "label": "模块", "layer": "L3", "summary": "s", "description": "d", "files": ["f1"]}],
+            "files": [{"id": "f1", "path": "a.py", "module": "m1", "hash": "h1",
+                       "functions": []}],
+        }
+        new_ir = {
+            "schema_version": 2,
+            "meta": {"project": "p", "language": "python", "generated_by": "builder"},
+            "modules": [{"id": "m1", "label": "模块", "files": ["f1"]}],
+            "files": [{"id": "f1", "path": "a.py", "module": "m1", "hash": "h1",
+                       "functions": []}],
+        }
+        copy_unchanged(old_ir, new_ir)
+        self.assertEqual(new_ir["modules"][0]["layer"], "L3")
+        self.assertEqual(new_ir["modules"][0]["summary"], "s")
 
 
 if __name__ == "__main__":

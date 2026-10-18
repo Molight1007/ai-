@@ -3,7 +3,7 @@ import { Diagram } from './Diagram'
 import { CodePanel } from './CodePanel'
 import { FunctionDetail } from './FunctionDetail'
 import { IssuesPanel, type IssueItem } from './IssuesPanel'
-import { analyzeFiles, configureLlm, loadIR, loadLlmStatus, shutdownServer } from './api'
+import { analyzeFiles, configureLlm, loadIR, loadLlmStatus, shutdownServer, updateIr } from './api'
 import { ProjectInput } from './ProjectInput'
 import { pickDirectory } from './fs'
 import { SAMPLE_IR } from './data'
@@ -21,6 +21,8 @@ function truncate(s: string, n: number): string {
 }
 
 const SEV_RANK: Record<string, number> = { error: 0, warning: 1, info: 2 }
+
+const CACHE_PREFIX = 'aicodeviz_ir_'
 
 function AnalyzingPane() {
   const [elapsed, setElapsed] = useState(0)
@@ -96,7 +98,19 @@ export default function App() {
       setRoot(null)
       setIr(null)
       setPath(['project'])
-      const ir = await analyzeFiles(picked, project, readme)
+      // 有上次架构图 → 增量更新；否则全量生成
+      const cached = localStorage.getItem(CACHE_PREFIX + project)
+      let ir: IR
+      if (cached) {
+        try {
+          ir = await updateIr(picked, project, readme, JSON.parse(cached) as IR)
+        } catch {
+          ir = await analyzeFiles(picked, project, readme)
+        }
+      } else {
+        ir = await analyzeFiles(picked, project, readme)
+      }
+      localStorage.setItem(CACHE_PREFIX + project, JSON.stringify(ir))
       setIr(ir)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))

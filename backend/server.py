@@ -23,7 +23,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
 from backend.builder.builder import build_ir_from_files, load_or_build_ir
-from backend.enrich import enrich
+from backend.enrich import copy_unchanged, enrich
 from backend.llm import has_key, load_config, save_config
 
 PROJECT_ROOT = os.path.abspath(os.environ.get("PROJECT_ROOT", "."))
@@ -64,6 +64,8 @@ class Handler(BaseHTTPRequestHandler):
         parsed = urlparse(self.path)
         if parsed.path == "/api/analyze":
             self._analyze()
+        elif parsed.path == "/api/update":
+            self._update()
         elif parsed.path == "/api/llm/config":
             self._llm_config()
         elif parsed.path == "/api/shutdown":
@@ -112,6 +114,35 @@ class Handler(BaseHTTPRequestHandler):
             ir = enrich(ir, file_contents)
             self._json(ir)
         except Exception as e:  # noqa: BLE001 —— 接口要兜底返回错误
+            self._json({"error": str(e)}, 500)
+
+    def _update(self):
+        """增量更新：对比上次 IR 与当前代码，保留未变语义，只重生成变化部分。"""
+        try:
+            data = self._read_body()
+            files = data.get("files", [])
+            old_ir = data.get("old_ir")
+            if not files:
+                self._json({"error": "所选目录没有 .py 文件"}, 400)
+                return
+            if not has_key():
+                self._json({"error": "请先配置 DeepSeek API Key"}, 400)
+                return
+            if not isinstance(old_ir, dict):
+                self._json({"error": "缺少上次架构图数据"}, 400)
+                return
+            new_ir = build_ir_from_files(
+                files, data.get("project", "project"), readme=data.get("readme"),
+            )
+            unchanged = copy_unchanged(old_ir, new_ir)
+            changed_paths = [f["path"] for f in new_ir["files"] if f["id"] not in unchanged]
+            file_contents = {f["path"]: f["content"] for f in files}
+            if changed_paths:
+                new_ir = enrich(new_ir, file_contents, focus_paths=changed_paths)
+            else:
+                new_ir["meta"]["generated_by"] = new_ir["meta"].get("generated_by", "") + "+update(none)"
+            self._json(new_ir)
+        except Exception as e:  # noqa: BLE001
             self._json({"error": str(e)}, 500)
 
     def _shutdown(self):

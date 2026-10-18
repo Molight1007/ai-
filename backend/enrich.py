@@ -33,12 +33,16 @@ SYSTEM_PROMPT = """你是一名代码架构分析专家。给定一个 Python �
 - 用中文书写 summary / description / title / detail / suggestion"""
 
 
-def enrich(ir: dict, file_contents: dict[str, str] | None = None) -> dict:
-    """对骨架 IR 做语义填充，返回 enrich 后的 IR（原 IR 不修改）。"""
+def enrich(ir: dict, file_contents: dict[str, str] | None = None,
+           focus_paths: list[str] | None = None) -> dict:
+    """对骨架 IR 做语义填充，返回 enrich 后的 IR（原 IR 不修改）。
+
+    focus_paths 指定时只重新生成这些文件的语义（增量更新），否则全量生成。
+    """
     ir = json.loads(json.dumps(ir))  # 深拷贝，避免污染调用方
     reply = chat([
         {"role": "system", "content": SYSTEM_PROMPT},
-        {"role": "user", "content": _build_prompt(ir, file_contents or {})},
+        {"role": "user", "content": _build_prompt(ir, file_contents or {}, focus_paths)},
     ])
     patch = _parse_json(reply)
     _apply_patch(ir, patch)
@@ -49,7 +53,8 @@ def enrich(ir: dict, file_contents: dict[str, str] | None = None) -> dict:
     return ir
 
 
-def _build_prompt(ir: dict, file_contents: dict[str, str]) -> str:
+def _build_prompt(ir: dict, file_contents: dict[str, str],
+                  focus_paths: list[str] | None = None) -> str:
     lines = [f"项目名：{ir['meta']['project']}\n"]
     lines.append(f"项目概述（README）：{ir['meta'].get('overview', '（无 README，请根据代码自行判断）')}")
     lines.append("")
@@ -61,10 +66,17 @@ def _build_prompt(ir: dict, file_contents: dict[str, str]) -> str:
         lines.append(f"- {f['id']} path={f['path']} doc={f.get('summary') or ''}")
         for fn in f.get("functions", []):
             lines.append(f"    {fn['id']} name={fn['name']} doc={fn.get('summary') or ''}")
-    lines.append("\n关键源码（截断）：")
-    for path, content in file_contents.items():
-        lines.append(f"=== {path} ===")
-        lines.append(content[:3000])
+    if focus_paths is not None:
+        lines.append("\n【增量更新】以下文件有变化，请只更新这些文件的语义，其余文件保持已有语义不变：")
+        for path in focus_paths:
+            if path in file_contents:
+                lines.append(f"=== {path} ===")
+                lines.append(file_contents[path][:3000])
+    else:
+        lines.append("\n关键源码（截断）：")
+        for path, content in file_contents.items():
+            lines.append(f"=== {path} ===")
+            lines.append(content[:3000])
     return "\n".join(lines)
 
 
@@ -123,3 +135,44 @@ def _apply_patch(ir: dict, patch: dict) -> None:
                 "id": f"flow_{len(ir.get('flows', []))}", "label": p.get("label", "主流程"),
                 "steps": steps,
             })
+
+
+def copy_unchanged(old_ir: dict, new_ir: dict) -> set[str]:
+    """把旧 IR 中未变文件/模块的语义拷贝到新 IR，返回未变文件 id 集合。
+
+    未变 = 文件 id 相同且内容 hash 相同（id 由路径 sanitize 生成，路径不变则 id 稳定）。
+    """
+    old_files = {f["id"]: f for f in old_ir.get("files", [])}
+    old_modules = {m["id"]: m for m in old_ir.get("modules", [])}
+
+    unchanged: set[str] = set()
+    for f in new_ir["files"]:
+        old = old_files.get(f["id"])
+        if old and old.get("hash") and old.get("hash") == f.get("hash"):
+            unchanged.add(f["id"])
+
+    for f in new_ir["files"]:
+        if f["id"] not in unchanged:
+            continue
+        old = old_files[f["id"]]
+        if old.get("description"):
+            f["description"] = old["description"]
+        old_fns = {fn["id"]: fn for fn in old.get("functions", [])}
+        for fn in f.get("functions", []):
+            ofn = old_fns.get(fn["id"])
+            if ofn:
+                if ofn.get("summary"):
+                    fn["summary"] = ofn["summary"]
+                if ofn.get("description"):
+                    fn["description"] = ofn["description"]
+
+    for m in new_ir["modules"]:
+        ids = m.get("files") or []
+        if ids and all(fid in unchanged for fid in ids):
+            old_m = old_modules.get(m["id"])
+            if old_m:
+                for k in ("layer", "summary", "description"):
+                    if old_m.get(k):
+                        m[k] = old_m[k]
+
+    return unchanged

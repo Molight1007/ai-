@@ -33,6 +33,26 @@ export function analyzeFiles(
   return postAnalyze('/api/analyze', files, project, readme)
 }
 
+export async function updateIr(
+  files: ProjectFile[],
+  project: string,
+  readme: string | undefined,
+  oldIr: IR,
+): Promise<IR> {
+  const res = await fetch('/api/update', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ files, project, readme, old_ir: oldIr }),
+  })
+  if (!res.ok) throw new Error(`更新失败（${res.status}）`)
+  const data = await res.json()
+  if (data && data.error) throw new Error(data.error)
+  if (data && Array.isArray(data.modules) && Array.isArray(data.files)) {
+    return data as IR
+  }
+  throw new Error('返回数据格式不符')
+}
+
 export async function shutdownServer(): Promise<void> {
   try {
     await fetch('/api/shutdown', { method: 'POST' })

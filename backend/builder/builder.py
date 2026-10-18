@@ -14,6 +14,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import json
 import os
 import re
@@ -129,6 +130,7 @@ def parse_source(rp: str, src: str) -> dict:
     return {
         "path": rp, "lines": len(lines), "doc": _first_line(ast.get_docstring(tree)),
         "imports": sorted(set(imports)), "functions": functions,
+        "hash": hashlib.md5(src.encode("utf-8")).hexdigest(),
     }
 
 
@@ -235,6 +237,7 @@ def _assemble(metas: list[dict], root_name: str, violations) -> dict:
         files.append({
             "id": fid, "path": m["path"], "module": path_to_module[m["path"]],
             "language": "python", "lines": m["lines"], "summary": m["doc"],
+            "hash": m.get("hash"),
             "functions": [
                 {
                     "id": func_ids[(m["path"], fn["name"])],
