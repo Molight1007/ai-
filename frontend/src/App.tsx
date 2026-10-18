@@ -4,6 +4,8 @@ import { CodePanel } from './CodePanel'
 import { FunctionDetail } from './FunctionDetail'
 import { IssuesPanel, type IssueItem } from './IssuesPanel'
 import { loadIR } from './api'
+import { ProjectInput } from './ProjectInput'
+import { SAMPLE_IR } from './data'
 import type { DiagramNode, DiagramEdge } from './layout'
 import type { FileNode, IR, Module } from './types'
 
@@ -23,7 +25,9 @@ export default function App() {
   const [view, setView] = useState<View>('code')
   const [path, setPath] = useState<string[]>(['project'])
   const [hl, setHl] = useState<{ fileId: string; line?: number } | null>(null)
+  const [root, setRoot] = useState<string | null>(null)
   const [ir, setIr] = useState<IR | null>(null)
+  const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     const saved = localStorage.getItem('theme')
@@ -31,15 +35,26 @@ export default function App() {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   })
 
-  useEffect(() => {
-    let alive = true
-    loadIR().then((data) => {
-      if (alive) setIr(data)
-    })
-    return () => {
-      alive = false
-    }
-  }, [])
+  function analyze(r: string) {
+    setRoot(r)
+    setIr(null)
+    setError(null)
+    loadIR(r).then(setIr).catch((e) => setError(e instanceof Error ? e.message : String(e)))
+  }
+
+  function loadDemo() {
+    setRoot(null)
+    setIr(SAMPLE_IR)
+    setError(null)
+    setPath(['project'])
+  }
+
+  function backToInput() {
+    setRoot(null)
+    setIr(null)
+    setError(null)
+    setPath(['project'])
+  }
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme)
@@ -47,6 +62,12 @@ export default function App() {
   }, [theme])
 
   if (!ir) {
+    if (error) {
+      return <ProjectInput initial={root ?? ''} error={error} onAnalyze={analyze} onDemo={loadDemo} />
+    }
+    if (root === null) {
+      return <ProjectInput onAnalyze={analyze} onDemo={loadDemo} />
+    }
     return (
       <div className="app">
         <div className="loading">加载项目结构…</div>
@@ -247,6 +268,7 @@ export default function App() {
         ) : (
           <CodePanel
             path={currentFile.path}
+            root={root}
             lines={currentFile.lines}
             highlightLine={hlLine}
           />
@@ -285,6 +307,7 @@ export default function App() {
         >
           审查模式
         </button>
+        <button className="theme-btn" onClick={backToInput}>换项目</button>
         <button
           className="theme-btn"
           onClick={() => setTheme((t) => (t === 'light' ? 'dark' : 'light'))}

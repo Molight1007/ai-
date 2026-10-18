@@ -32,22 +32,23 @@ function highlight(line: string): ReactNode[] {
 
 interface Props {
   path: string
+  root: string | null
   lines?: number
   highlightLine?: number
 }
 
-export function CodePanel({ path, lines, highlightLine }: Props) {
+export function CodePanel({ path, root, lines, highlightLine }: Props) {
   const [code, setCode] = useState<string | null>(null)
 
   useEffect(() => {
     let alive = true
-    loadFile(path).then((c) => {
+    loadFile(root, path).then((c) => {
       if (alive) setCode(c)
     })
     return () => {
       alive = false
     }
-  }, [path])
+  }, [root, path])
 
   if (code === null) {
     return <div className="code-loading">加载中…</div>

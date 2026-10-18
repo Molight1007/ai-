@@ -44,24 +44,24 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/health":
             self._json({"ok": True, "root": PROJECT_ROOT})
         elif path == "/api/ir":
-            self._ir()
+            self._ir(query.get("root", [PROJECT_ROOT])[0])
         elif path == "/api/file":
-            self._file(query.get("path", [""])[0])
+            self._file(query.get("root", [PROJECT_ROOT])[0], query.get("path", [""])[0])
         else:
             self._json({"error": "not found"}, 404)
 
-    def _ir(self):
+    def _ir(self, root: str):
         try:
-            ir, _source = load_or_build_ir(PROJECT_ROOT)
+            ir, _source = load_or_build_ir(root)
             self._json(ir)
         except Exception as e:  # noqa: BLE001 —— 接口要兜底返回错误
             self._json({"error": str(e)}, 500)
 
-    def _file(self, rel: str):
+    def _file(self, root: str, rel: str):
         if not rel:
             self._json({"error": "missing path"}, 400)
             return
-        target = safe_join(PROJECT_ROOT, rel)
+        target = safe_join(root, rel)
         if target is None or not os.path.isfile(target):
             self._json({"error": "file not found"}, 404)
             return
