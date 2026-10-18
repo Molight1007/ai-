@@ -24,7 +24,7 @@ from urllib.parse import parse_qs, urlparse
 
 from backend.builder.builder import build_ir_from_files, load_or_build_ir
 from backend.enrich import enrich
-from backend.llm import load_config
+from backend.llm import load_config, save_config
 
 PROJECT_ROOT = os.path.abspath(os.environ.get("PROJECT_ROOT", "."))
 
@@ -66,10 +66,30 @@ class Handler(BaseHTTPRequestHandler):
             self._analyze()
         elif parsed.path == "/api/enrich":
             self._enrich()
+        elif parsed.path == "/api/llm/config":
+            self._llm_config()
         elif parsed.path == "/api/shutdown":
             self._shutdown()
         else:
             self._json({"error": "not found"}, 404)
+
+    def _llm_config(self):
+        try:
+            data = self._read_body()
+            api_key = str(data.get("api_key", "")).strip()
+            if not api_key:
+                self._json({"error": "api_key 不能为空"}, 400)
+                return
+            cfg = load_config()
+            cfg["api_key"] = api_key
+            if data.get("model"):
+                cfg["model"] = data["model"]
+            if data.get("base_url"):
+                cfg["base_url"] = data["base_url"]
+            save_config(cfg)
+            self._json({"ok": True, "configured": True})
+        except Exception as e:  # noqa: BLE001
+            self._json({"error": str(e)}, 500)
 
     def _read_body(self) -> dict:
         length = int(self.headers.get("Content-Length", 0))

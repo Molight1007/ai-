@@ -35,6 +35,15 @@ def has_key() -> bool:
     return bool(load_config().get("api_key"))
 
 
+def save_config(cfg: dict) -> None:
+    """把配置写回 llm.toml（tomllib 只读，这里手写序列化）。"""
+    lines = ["[llm]"]
+    for key in ("base_url", "model", "api_key"):
+        lines.append(f'{key} = "{cfg.get(key, "")}"')
+    with open(CONFIG_PATH, "w", encoding="utf-8") as fp:
+        fp.write("\n".join(lines) + "\n")
+
+
 def chat(messages: list[dict], config: dict | None = None) -> str:
     """调用 chat completions，返回助手回复文本。"""
     cfg = config or load_config()

@@ -9,6 +9,7 @@ interface Props {
   onPickEnrich: () => void
   onDemo: () => void
   onShutdown: () => void
+  onConfigureKey: (key: string) => void
 }
 
 export function ProjectInput({
@@ -20,8 +21,10 @@ export function ProjectInput({
   onPickEnrich,
   onDemo,
   onShutdown,
+  onConfigureKey,
 }: Props) {
   const [value, setValue] = useState(initial ?? '')
+  const [keyValue, setKeyValue] = useState('')
 
   return (
     <div className="app">
@@ -52,8 +55,21 @@ export function ProjectInput({
             选择文件夹并增强
           </button>
           {llmConfigured === false && (
-            <div className="pi-hint">
-              需在 backend/llm.toml 填入 DeepSeek API Key（或设置环境变量 LLM_API_KEY）
+            <div className="pi-config">
+              <input
+                className="pi-key-input mono"
+                placeholder="粘贴 DeepSeek API Key（sk-...）"
+                value={keyValue}
+                onChange={(e) => setKeyValue(e.target.value)}
+              />
+              <button
+                className="pi-key-save"
+                disabled={!keyValue.trim()}
+                onClick={() => onConfigureKey(keyValue.trim())}
+              >
+                保存
+              </button>
+              <div className="pi-hint">保存到 backend/llm.toml（已加入 .gitignore，不会提交）</div>
             </div>
           )}
         </div>

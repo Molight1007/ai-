@@ -65,6 +65,17 @@ export async function loadLlmStatus(): Promise<LlmStatus> {
   return { configured: false, model: '', base_url: '' }
 }
 
+export async function configureLlm(apiKey: string): Promise<void> {
+  const res = await fetch('/api/llm/config', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ api_key: apiKey }),
+  })
+  if (!res.ok) throw new Error('保存失败')
+  const data = await res.json()
+  if (data && data.error) throw new Error(data.error)
+}
+
 export async function loadIR(root: string | null): Promise<IR> {
   if (!root) return SAMPLE_IR
   const res = await fetch(`/api/ir?root=${encodeURIComponent(root)}`)

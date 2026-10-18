@@ -712,6 +712,38 @@ body {
   justify-content: space-between;
 }
 
+/* Key 配置 */
+.pi-config {
+  margin-top: 12px;
+}
+
+.pi-key-input {
+  width: 100%;
+  font-size: 13px;
+  color: var(--text);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  outline: none;
+}
+
+.pi-key-save {
+  margin-top: 8px;
+  font-size: 13px;
+  color: #fff;
+  background: #185fa5;
+  border: none;
+  border-radius: 8px;
+  padding: 6px 16px;
+  cursor: pointer;
+}
+
+.pi-key-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 .pi-divider {
   color: var(--hint);
   font-size: 12px;
