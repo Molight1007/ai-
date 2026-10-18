@@ -1,4 +1,30 @@
 import { useState } from 'react'
+import type { LlmConfig } from './api'
+
+interface Provider {
+  name: string
+  base_url: string
+  models: string[]
+}
+
+const PROVIDERS: Provider[] = [
+  {
+    name: 'DeepSeek',
+    base_url: 'https://api.deepseek.com',
+    models: ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v4-pro', 'deepseek-v4.1-flash'],
+  },
+  {
+    name: 'OpenAI',
+    base_url: 'https://api.openai.com/v1',
+    models: ['gpt-4o', 'gpt-4o-mini', 'o3-mini'],
+  },
+  {
+    name: '通义千问 Code',
+    base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
+    models: ['qwen-coder-plus', 'qwen-coder-turbo'],
+  },
+  { name: '自定义', base_url: '', models: [] },
+]
 
 interface Props {
   initial?: string
@@ -6,7 +32,7 @@ interface Props {
   llmConfigured: boolean | null
   onAnalyze: (root: string) => void
   onPick: () => void
-  onConfigureKey: (key: string) => void
+  onConfigureKey: (cfg: LlmConfig) => void
   onDemo: () => void
   onShutdown: () => void
 }
@@ -22,7 +48,23 @@ export function ProjectInput({
   onShutdown,
 }: Props) {
   const [value, setValue] = useState(initial ?? '')
+  const [providerIdx, setProviderIdx] = useState(0)
+  const [baseUrl, setBaseUrl] = useState(PROVIDERS[0].base_url)
+  const [model, setModel] = useState(PROVIDERS[0].models[0])
   const [keyValue, setKeyValue] = useState('')
+  const [showConfig, setShowConfig] = useState(false)
+
+  function onProviderChange(i: number) {
+    setProviderIdx(i)
+    setBaseUrl(PROVIDERS[i].base_url)
+    setModel(PROVIDERS[i].models[0] ?? '')
+  }
+
+  function save() {
+    onConfigureKey({ api_key: keyValue.trim(), model: model.trim(), base_url: baseUrl.trim() })
+  }
+
+  const needConfig = llmConfigured === false || (llmConfigured === true && showConfig)
 
   return (
     <div className="app">
@@ -32,30 +74,70 @@ export function ProjectInput({
 
         <div className="pi-card">
           <div className="pi-card-head">
-            <span className="pi-card-title">① 配置 DeepSeek API Key</span>
-            {llmConfigured === true && <span className="pi-badge pi-badge-ok">已配置</span>}
+            <span className="pi-card-title">① 配置大模型</span>
+            {llmConfigured === true && !showConfig && <span className="pi-badge pi-badge-ok">已配置</span>}
             {llmConfigured === false && <span className="pi-badge pi-badge-warn">未配置</span>}
             {llmConfigured === null && <span className="pi-badge">检测中…</span>}
           </div>
-          {llmConfigured === false ? (
+
+          {needConfig ? (
             <div className="pi-config">
+              <div className="pi-field-label">服务商</div>
+              <select
+                className="pi-select"
+                value={providerIdx}
+                onChange={(e) => onProviderChange(Number(e.target.value))}
+              >
+                {PROVIDERS.map((p, i) => (
+                  <option key={i} value={i}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+
+              <div className="pi-field-label">Base URL</div>
               <input
                 className="pi-key-input mono"
-                placeholder="粘贴 DeepSeek API Key（sk-...）"
+                value={baseUrl}
+                onChange={(e) => setBaseUrl(e.target.value)}
+                placeholder="OpenAI 兼容端点"
+              />
+
+              <div className="pi-field-label">模型</div>
+              <input
+                className="pi-key-input mono"
+                value={model}
+                onChange={(e) => setModel(e.target.value)}
+                placeholder="模型名"
+                list="model-options"
+              />
+              <datalist id="model-options">
+                {PROVIDERS[providerIdx].models.map((m) => (
+                  <option key={m} value={m} />
+                ))}
+              </datalist>
+
+              <div className="pi-field-label">API Key</div>
+              <input
+                className="pi-key-input mono"
+                type="password"
                 value={keyValue}
                 onChange={(e) => setKeyValue(e.target.value)}
+                placeholder="sk-..."
               />
-              <button
-                className="pi-key-save"
-                disabled={!keyValue.trim()}
-                onClick={() => onConfigureKey(keyValue.trim())}
-              >
+
+              <button className="pi-key-save" disabled={!keyValue.trim()} onClick={save}>
                 保存
               </button>
-              <div className="pi-hint">Key 保存在本地 backend/llm.toml，不会提交到 GitHub</div>
+              <div className="pi-hint">配置保存在本地 backend/llm.toml，不会提交到 GitHub</div>
             </div>
           ) : (
-            <div className="pi-card-desc">已就绪，下一步选择项目文件夹即可</div>
+            <div className="pi-card-desc">
+              已就绪，下一步选择项目文件夹即可
+              <span className="pi-relink" onClick={() => setShowConfig(true)}>
+                重新配置
+              </span>
+            </div>
           )}
         </div>
 
@@ -66,16 +148,10 @@ export function ProjectInput({
           <div className="pi-card-desc">
             自动读取代码 + README → 定位 AI 代码板块 → 按规范生成架构图
           </div>
-          <button
-            className="pi-pick"
-            onClick={onPick}
-            disabled={llmConfigured !== true}
-          >
+          <button className="pi-pick" onClick={onPick} disabled={llmConfigured !== true}>
             选择文件夹生成架构图
           </button>
-          {llmConfigured !== true && (
-            <div className="pi-hint">请先完成第 ① 步配置 API Key</div>
-          )}
+          {llmConfigured !== true && <div className="pi-hint">请先完成第 ① 步配置大模型</div>}
         </div>
 
         <div className="pi-divider">或手动输入路径</div>

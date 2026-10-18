@@ -3,7 +3,7 @@ import { Diagram } from './Diagram'
 import { CodePanel } from './CodePanel'
 import { FunctionDetail } from './FunctionDetail'
 import { IssuesPanel, type IssueItem } from './IssuesPanel'
-import { analyzeFiles, configureLlm, loadIR, loadLlmStatus, shutdownServer, updateIr } from './api'
+import { analyzeFiles, configureLlm, loadIR, loadLlmStatus, shutdownServer, updateIr, type LlmConfig } from './api'
 import { ProjectInput } from './ProjectInput'
 import { pickDirectory } from './fs'
 import { SAMPLE_IR } from './data'
@@ -119,9 +119,9 @@ export default function App() {
     }
   }
 
-  async function configureKey(apiKey: string) {
+  async function configureKey(cfg: LlmConfig) {
     try {
-      await configureLlm(apiKey)
+      await configureLlm(cfg)
       const s = await loadLlmStatus()
       setLlmConfigured(s.configured)
       setError(null)

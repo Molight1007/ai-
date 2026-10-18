@@ -77,11 +77,17 @@ export async function loadLlmStatus(): Promise<LlmStatus> {
   return { configured: false, model: '', base_url: '' }
 }
 
-export async function configureLlm(apiKey: string): Promise<void> {
+export interface LlmConfig {
+  api_key: string
+  model?: string
+  base_url?: string
+}
+
+export async function configureLlm(cfg: LlmConfig): Promise<void> {
   const res = await fetch('/api/llm/config', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ api_key: apiKey }),
+    body: JSON.stringify(cfg),
   })
   if (!res.ok) throw new Error('保存失败')
   const data = await res.json()
