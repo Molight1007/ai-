@@ -93,6 +93,18 @@ export async function configureLlm(cfg: LlmConfig): Promise<void> {
   if (data && data.error) throw new Error(data.error)
 }
 
+export async function exportHtml(ir: IR, files: Record<string, string>): Promise<string> {
+  const res = await fetch('/api/export', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ir, files }),
+  })
+  if (!res.ok) throw new Error('导出失败')
+  const data = await res.json()
+  if (data && data.error) throw new Error(data.error)
+  return data.html as string
+}
+
 export async function loadIR(root: string | null): Promise<IR> {
   if (!root) return SAMPLE_IR
   const res = await fetch(`/api/ir?root=${encodeURIComponent(root)}`)

@@ -43,6 +43,19 @@ def safe_join(root: str, rel: str) -> str | None:
     return None
 
 
+DIST_HTML = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "..", "frontend", "dist", "index.html"
+)
+
+
+def read_dist_template() -> str | None:
+    """读前端单文件构建产物作为导出模板；未构建返回 None。"""
+    if os.path.isfile(DIST_HTML):
+        with open(DIST_HTML, "r", encoding="utf-8") as fp:
+            return fp.read()
+    return None
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -73,6 +86,8 @@ class Handler(BaseHTTPRequestHandler):
             self._update()
         elif parsed.path == "/api/llm/config":
             self._llm_config()
+        elif parsed.path == "/api/export":
+            self._export()
         elif parsed.path == "/api/shutdown":
             self._shutdown()
         else:
@@ -166,6 +181,29 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 new_ir["meta"]["generated_by"] = new_ir["meta"].get("generated_by", "") + "+update(none)"
             self._json(new_ir)
+        except Exception as e:  # noqa: BLE001
+            self._json({"error": str(e)}, 500)
+
+    def _export(self):
+        """把架构图数据注入单文件前端模板，产出可离线双击打开的 HTML。"""
+        try:
+            data = self._read_body()
+            ir = data.get("ir")
+            files = data.get("files", {})
+            if not isinstance(ir, dict):
+                self._json({"error": "缺少架构图数据"}, 400)
+                return
+            template = read_dist_template()
+            if template is None:
+                self._json({"error": "前端未构建，请先执行 cd frontend && npm run build"}, 500)
+                return
+            inject = (
+                "<script>window.__EXPORT__ = "
+                + json.dumps({"ir": ir, "files": files}, ensure_ascii=False)
+                + ";</script>"
+            )
+            html = template.replace("</head>", inject + "</head>", 1)
+            self._json({"html": html})
         except Exception as e:  # noqa: BLE001
             self._json({"error": str(e)}, 500)
 

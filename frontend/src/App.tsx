@@ -3,7 +3,7 @@ import { Diagram } from './Diagram'
 import { CodePanel } from './CodePanel'
 import { FunctionDetail } from './FunctionDetail'
 import { IssuesPanel, type IssueItem } from './IssuesPanel'
-import { analyzeFiles, analyzeRoot, configureLlm, loadLlmStatus, shutdownServer, updateIr, type LlmConfig, type LlmStatus } from './api'
+import { analyzeFiles, analyzeRoot, configureLlm, exportHtml, loadLlmStatus, shutdownServer, updateIr, type LlmConfig, type LlmStatus } from './api'
 import { ProjectInput } from './ProjectInput'
 import { pickDirectory, type ProjectFile } from './fs'
 import { SAMPLE_IR } from './data'
@@ -67,6 +67,16 @@ export default function App() {
   const [llmStatus, setLlmStatus] = useState<LlmStatus | null>(null)
 
   useEffect(() => {
+    // 独立导出模式：HTML 内嵌了架构图数据，直接加载，不走后端
+    const exported = (window as unknown as {
+      __EXPORT__?: { ir: IR; files?: Record<string, string> }
+    }).__EXPORT__
+    if (exported?.ir) {
+      setIr(exported.ir)
+      if (exported.files) setFileContent(new Map(Object.entries(exported.files)))
+      setRoot(null)
+      return
+    }
     loadLlmStatus().then((s) => setLlmStatus(s))
   }, [])
 
@@ -152,6 +162,23 @@ export default function App() {
   async function shutdown() {
     await shutdownServer()
     setError('服务已终止')
+  }
+
+  async function exportArch() {
+    if (!ir) return
+    try {
+      const files = Object.fromEntries(fileContent ?? [])
+      const html = await exportHtml(ir, files)
+      const blob = new Blob([html], { type: 'text/html' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `${ir.meta.project}_架构图.html`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
   }
 
   function backToInput() {
@@ -430,6 +457,7 @@ export default function App() {
         >
           审查模式
         </button>
+        <button className="theme-btn" onClick={exportArch}>导出</button>
         <button className="theme-btn" onClick={backToInput}>换项目</button>
         <button
           className="theme-btn"
