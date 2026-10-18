@@ -26,6 +26,7 @@ export interface Module {
   layer?: string
   summary?: string
   description?: string
+  category?: string
   files: string[]
 }
 
@@ -49,6 +50,7 @@ export interface FileNode {
   lines?: number
   summary?: string
   description?: string
+  category?: string
   functions: FunctionNode[]
 }
 

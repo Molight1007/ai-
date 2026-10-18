@@ -217,6 +217,28 @@ body {
   gap: 8px;
 }
 
+.cat-tabs {
+  flex: none;
+  display: flex;
+  gap: 6px;
+}
+
+.cat-tab {
+  font-size: 13px;
+  color: var(--muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 16px;
+  cursor: pointer;
+}
+
+.cat-tab.active {
+  color: #fff;
+  background: #185fa5;
+  border-color: #185fa5;
+}
+
 .module-bar {
   flex: none;
   display: flex;

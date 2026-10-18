@@ -51,6 +51,7 @@ function AnalyzingPane() {
 
 export default function App() {
   const [view, setView] = useState<View>('code')
+  const [category, setCategory] = useState<'core' | 'tools' | 'docs'>('core')
   const [path, setPath] = useState<string[]>(['project'])
   const [hl, setHl] = useState<{ fileId: string; line?: number } | null>(null)
   const [root, setRoot] = useState<string | null>(null)
@@ -297,7 +298,8 @@ export default function App() {
   }
 
   // ---- L1 ----
-  const moduleNodes: DiagramNode[] = ir.modules.map((m) => ({
+  const visibleModules = ir.modules.filter((m) => (m.category ?? 'core') === category)
+  const moduleNodes: DiagramNode[] = visibleModules.map((m) => ({
     id: m.id,
     label: m.label,
     sub:
@@ -311,10 +313,10 @@ export default function App() {
     height: 56,
     badge: view === 'review' ? moduleBadge.get(m.id) : undefined,
   }))
-  const moduleEdges: DiagramEdge[] = (ir.module_dependencies ?? []).map((d) => ({
-    from: d.from,
-    to: d.to,
-  }))
+  const visibleIds = new Set(visibleModules.map((m) => m.id))
+  const moduleEdges: DiagramEdge[] = (ir.module_dependencies ?? [])
+    .filter((d) => visibleIds.has(d.from) && visibleIds.has(d.to))
+    .map((d) => ({ from: d.from, to: d.to }))
 
   // ---- L2 ----
   let currentModule: Module | undefined
@@ -360,9 +362,28 @@ export default function App() {
   // ---- 主体内容 ----
   let content: JSX.Element | null = null
   if (level === 1) {
+    const catTabs: { key: 'core' | 'tools' | 'docs'; label: string }[] = [
+      { key: 'core', label: '核心架构' },
+      { key: 'tools', label: '工具' },
+      { key: 'docs', label: '文档' },
+    ]
     content = (
       <div className="l2-wrap">
-        {ir.meta.overview && (
+        <div className="cat-tabs">
+          {catTabs.map((t) => (
+            <button
+              key={t.key}
+              className={category === t.key ? 'cat-tab active' : 'cat-tab'}
+              onClick={() => {
+                setCategory(t.key)
+                setPath(['project'])
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {category === 'core' && ir.meta.overview && (
           <div className="module-bar">
             <span className="module-bar-label">项目概述</span>
             <span className="module-bar-desc">{ir.meta.overview}</span>

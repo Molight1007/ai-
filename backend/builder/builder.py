@@ -31,6 +31,32 @@ _SKIP_DIRS = {
     ".pytest_cache", "results",
 }
 
+# 文件分类：core=核心业务 / tools=工具与支撑 / docs=文档与其他（前端分界面展示）
+_CORE_TOP = {
+    "agent", "contracts", "cli", "utils", "proj", "deploy",
+    "formal-imo", "imo_bench_eval", "superhuman", "imo_steps",
+}
+_TOOL_TOP = {"tools", "scripts", "vendor", "lean-lsp-mcp", "测试工具"}
+_DOC_TOP = {
+    "docs", "archive", "output", "results", "logs", "data", "papers",
+    "sample_data", "prompts", "题库", "题库备份", "论文实践", "测试结果",
+    "与lean相关的插件", "lean-toolchain", "lean下载版",
+}
+
+
+def classify_path(path: str) -> str:
+    """把文件相对路径分类为 core / tools / docs（供前端分界面展示）。"""
+    if path.endswith((".md", ".txt", ".docx", ".pdf")):
+        return "docs"
+    top = path.split("/", 1)[0]
+    if top in _DOC_TOP:
+        return "docs"
+    if top in _TOOL_TOP or top.startswith("ripgrep"):
+        return "tools"
+    if top in _CORE_TOP or "/" not in path:
+        return "core"
+    return "docs"
+
 
 class IdGen:
     def __init__(self):
@@ -233,8 +259,9 @@ def _assemble(metas: list[dict], root_name: str, violations) -> dict:
     for key in sorted(groups):
         label = root_name if key == "__root__" else key
         mid = idgen.gen("m_" + label)
+        cat = classify_path(groups[key][0]["path"])
         modules.append({
-            "id": mid, "label": label,
+            "id": mid, "label": label, "category": cat,
             "files": [file_ids[m["path"]] for m in groups[key]],
         })
         for m in groups[key]:
@@ -249,7 +276,7 @@ def _assemble(metas: list[dict], root_name: str, violations) -> dict:
         files.append({
             "id": fid, "path": m["path"], "module": path_to_module[m["path"]],
             "language": "python", "lines": m["lines"], "summary": m["doc"],
-            "hash": m.get("hash"),
+            "hash": m.get("hash"), "category": classify_path(m["path"]),
             "functions": [
                 {
                     "id": func_ids[(m["path"], idx)],
