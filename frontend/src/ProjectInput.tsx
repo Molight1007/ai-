@@ -5,25 +5,73 @@ interface Provider {
   name: string
   base_url: string
   models: string[]
+  note?: string
 }
 
 const PROVIDERS: Provider[] = [
   {
     name: 'DeepSeek',
     base_url: 'https://api.deepseek.com',
-    models: ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v4-pro', 'deepseek-v4.1-flash'],
+    models: ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4.1-flash'],
   },
   {
-    name: 'OpenAI',
-    base_url: 'https://api.openai.com/v1',
-    models: ['gpt-4o', 'gpt-4o-mini', 'o3-mini'],
+    name: '硅基流动（聚合多模型）',
+    base_url: 'https://api.siliconflow.cn/v1',
+    models: ['deepseek-ai/DeepSeek-V4-Pro', 'deepseek-ai/DeepSeek-V4-Flash', 'Qwen/Qwen3-Coder-Plus', 'THUDM/GLM-5'],
+    note: '一个 Key 调用多家模型（DeepSeek/Qwen/GLM/Kimi 等），新用户送余额',
   },
   {
-    name: '通义千问 Code',
+    name: '通义千问 Qwen',
     base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    models: ['qwen-coder-plus', 'qwen-coder-turbo'],
+    models: ['qwen3-coder-plus', 'qwen-coder-plus', 'qwen-plus'],
   },
-  { name: '自定义', base_url: '', models: [] },
+  {
+    name: '智谱 GLM',
+    base_url: 'https://open.bigmodel.cn/api/paas/v4',
+    models: ['glm-5', 'glm-4.5', 'glm-4-flash'],
+  },
+  {
+    name: 'Kimi（月之暗面）',
+    base_url: 'https://api.moonshot.cn/v1',
+    models: ['kimi-k2', 'moonshot-v1-8k'],
+  },
+  {
+    name: 'MiniMax',
+    base_url: 'https://api.minimaxi.com/v1',
+    models: ['MiniMax-M3', 'MiniMax-M2.5'],
+  },
+  {
+    name: '腾讯混元',
+    base_url: 'https://api.hunyuan.cloud.tencent.com/v1',
+    models: ['hunyuan-turbo', 'hunyuan-pro'],
+  },
+  {
+    name: '文心 ERNIE（百度千帆）',
+    base_url: 'https://qianfan.baidubce.com/v2',
+    models: ['ernie-4.0-8k', 'ernie-3.5-8k'],
+  },
+  {
+    name: '讯飞星火',
+    base_url: 'https://spark-api-open.xf-yun.com/v1',
+    models: ['4.0Ultra', 'generalv3.5'],
+  },
+  {
+    name: '阶跃星辰 Step',
+    base_url: 'https://api.stepfun.com/v1',
+    models: ['step-2', 'step-1.5v'],
+  },
+  {
+    name: '百川 Baichuan',
+    base_url: 'https://api.baichuan-ai.com/v1',
+    models: ['Baichuan4', 'Baichuan3-Turbo'],
+  },
+  {
+    name: '豆包（火山方舟）',
+    base_url: 'https://ark.cn-beijing.volces.com/api/v3',
+    models: [],
+    note: '需先在火山方舟控制台创建「推理接入点」，模型处填接入点 ID（如 ep-xxx）',
+  },
+  { name: '自定义（任意 OpenAI 兼容端点）', base_url: '', models: [] },
 ]
 
 interface Props {
@@ -94,6 +142,9 @@ export function ProjectInput({
                   </option>
                 ))}
               </select>
+              {PROVIDERS[providerIdx].note && (
+                <div className="pi-hint">{PROVIDERS[providerIdx].note}</div>
+              )}
 
               <div className="pi-field-label">Base URL</div>
               <input
