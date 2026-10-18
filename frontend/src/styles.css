@@ -588,6 +588,22 @@ body {
   outline: none;
 }
 
+.pi-pick {
+  font-size: 15px;
+  color: #fff;
+  background: #185fa5;
+  border: none;
+  border-radius: 8px;
+  padding: 12px 28px;
+  cursor: pointer;
+}
+
+.pi-divider {
+  color: var(--hint);
+  font-size: 12px;
+  margin: 20px 0 12px;
+}
+
 .pi-btn {
   font-size: 14px;
   color: #fff;

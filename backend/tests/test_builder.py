@@ -9,7 +9,7 @@ import os
 import tempfile
 import unittest
 
-from backend.builder.builder import build_ir, load_or_build_ir
+from backend.builder.builder import build_ir, build_ir_from_files, load_or_build_ir
 from backend.ir.validate import errors_only, validate
 
 FIXTURES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fixtures", "sample_project")
@@ -114,6 +114,27 @@ class TestLoadOrBuild(unittest.TestCase):
                 fp.write("{invalid json")
             ir, source = load_or_build_ir(tmp)
             self.assertEqual(source, "skeleton")
+
+
+class TestBuildFromFiles(unittest.TestCase):
+    def test_build_from_memory_files(self):
+        files = [
+            {"path": "a.py", "content": 'def f():\n    """doc"""\n    return 1\n'},
+            {"path": "pkg/b.py", "content": "def g():\n    return 2\n"},
+        ]
+        ir = build_ir_from_files(files, project_name="demo")
+        self.assertEqual(errors_only(validate(ir)), [])
+        self.assertEqual(ir["meta"]["project"], "demo")
+        self.assertEqual(len(ir["files"]), 2)
+        self.assertEqual(len(ir["modules"]), 2)
+
+    def test_build_from_memory_with_violations(self):
+        files = [
+            {"path": "x.py", "content": "def f():\n    try:\n        pass\n    except:\n        pass\n"},
+        ]
+        ir = build_ir_from_files(files, "demo")
+        rules = {v["rule"] for v in ir["rule_violations"]}
+        self.assertIn("R_BARE_EXCEPT", rules)
 
 
 if __name__ == "__main__":

@@ -55,12 +55,25 @@ def _rel(root: str, path: str) -> str:
 
 
 def analyze(root: str, rules: dict) -> list[Violation]:
-    rules = rules.get("rules", rules)
-    out: list[Violation] = []
+    files = []
     for path in iter_py_files(root):
         rp = _rel(root, path)
         with open(path, "r", encoding="utf-8") as fp:
             src = fp.read()
+        files.append({"path": rp, "content": src})
+    return analyze_from_files(files, rules)
+
+
+def analyze_from_files(files: list[dict], rules: dict) -> list[Violation]:
+    """对内存中的文件列表做静态自检（files = [{path, content}]）。
+
+    供「前端点选文件夹 → 上传文件内容」场景使用，无需后端读磁盘。
+    """
+    rules = rules.get("rules", rules)
+    out: list[Violation] = []
+    for f in files:
+        rp = f["path"]
+        src = f["content"]
         nlines = src.count("\n") + 1
         try:
             tree = ast.parse(src)

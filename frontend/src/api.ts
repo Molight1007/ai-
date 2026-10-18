@@ -2,7 +2,23 @@
 // root 为空时回退到内置示例数据（便于无后端时预览）。
 
 import { FILE_CONTENTS, SAMPLE_IR } from './data'
+import type { ProjectFile } from './fs'
 import type { IR } from './types'
+
+export async function analyzeFiles(files: ProjectFile[], project: string): Promise<IR> {
+  const res = await fetch('/api/analyze', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ files, project }),
+  })
+  if (!res.ok) throw new Error(`分析失败（${res.status}）`)
+  const data = await res.json()
+  if (data && data.error) throw new Error(data.error)
+  if (data && Array.isArray(data.modules) && Array.isArray(data.files)) {
+    return data as IR
+  }
+  throw new Error('返回数据格式不符')
+}
 
 export async function loadIR(root: string | null): Promise<IR> {
   if (!root) return SAMPLE_IR

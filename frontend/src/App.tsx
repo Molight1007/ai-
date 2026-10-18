@@ -3,8 +3,9 @@ import { Diagram } from './Diagram'
 import { CodePanel } from './CodePanel'
 import { FunctionDetail } from './FunctionDetail'
 import { IssuesPanel, type IssueItem } from './IssuesPanel'
-import { loadIR } from './api'
+import { analyzeFiles, loadIR } from './api'
 import { ProjectInput } from './ProjectInput'
+import { pickDirectory } from './fs'
 import { SAMPLE_IR } from './data'
 import type { DiagramNode, DiagramEdge } from './layout'
 import type { FileNode, IR, Module } from './types'
@@ -34,6 +35,7 @@ export default function App() {
     if (saved === 'light' || saved === 'dark') return saved
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   })
+  const [fileContent, setFileContent] = useState<Map<string, string> | null>(null)
 
   function analyze(r: string) {
     setRoot(r)
@@ -49,11 +51,33 @@ export default function App() {
     setPath(['project'])
   }
 
+  async function pickFolder() {
+    setError(null)
+    try {
+      const { project, files: picked } = await pickDirectory()
+      if (!picked.length) {
+        setError('所选目录没有 .py 文件')
+        return
+      }
+      const fc = new Map(picked.map((f) => [f.path, f.content]))
+      setFileContent(fc)
+      setRoot(null)
+      setIr(null)
+      setPath(['project'])
+      analyzeFiles(picked, project).then(setIr).catch((e) => {
+        setError(e instanceof Error ? e.message : String(e))
+      })
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    }
+  }
+
   function backToInput() {
     setRoot(null)
     setIr(null)
     setError(null)
     setPath(['project'])
+    setFileContent(null)
   }
 
   useEffect(() => {
@@ -63,10 +87,10 @@ export default function App() {
 
   if (!ir) {
     if (error) {
-      return <ProjectInput initial={root ?? ''} error={error} onAnalyze={analyze} onDemo={loadDemo} />
+      return <ProjectInput initial={root ?? ''} error={error} onAnalyze={analyze} onPick={pickFolder} onDemo={loadDemo} />
     }
     if (root === null) {
-      return <ProjectInput onAnalyze={analyze} onDemo={loadDemo} />
+      return <ProjectInput onAnalyze={analyze} onPick={pickFolder} onDemo={loadDemo} />
     }
     return (
       <div className="app">
@@ -269,6 +293,7 @@ export default function App() {
           <CodePanel
             path={currentFile.path}
             root={root}
+            fileContent={fileContent}
             lines={currentFile.lines}
             highlightLine={hlLine}
           />

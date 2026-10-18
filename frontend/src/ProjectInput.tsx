@@ -4,21 +4,29 @@ interface Props {
   initial?: string
   error?: string
   onAnalyze: (root: string) => void
+  onPick: () => void
   onDemo: () => void
 }
 
-export function ProjectInput({ initial, error, onAnalyze, onDemo }: Props) {
+export function ProjectInput({ initial, error, onAnalyze, onPick, onDemo }: Props) {
   const [value, setValue] = useState(initial ?? '')
 
   return (
     <div className="app">
       <div className="project-input">
         <div className="pi-title">AI 代码可视化</div>
-        <div className="pi-sub">输入本地项目文件夹的绝对路径，分析其代码结构</div>
+        <div className="pi-sub">选择或输入本地 Python 项目文件夹，分析其代码结构</div>
+
+        <button className="pi-pick" onClick={onPick}>
+          选择文件夹
+        </button>
+
+        <div className="pi-divider">或手动输入路径</div>
+
         <div className="pi-row">
           <input
             className="pi-field mono"
-            placeholder="例如 D:/my-project 或 /home/user/code"
+            placeholder="例如 D:/my-project"
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onKeyDown={(e) => {
@@ -33,7 +41,9 @@ export function ProjectInput({ initial, error, onAnalyze, onDemo }: Props) {
             分析
           </button>
         </div>
+
         {error && <div className="pi-error">{error}</div>}
+
         <div className="pi-demo" onClick={onDemo}>
           或查看内置示例数据
         </div>

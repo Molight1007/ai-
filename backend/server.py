@@ -21,7 +21,7 @@ import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from urllib.parse import parse_qs, urlparse
 
-from backend.builder.builder import load_or_build_ir
+from backend.builder.builder import build_ir_from_files, load_or_build_ir
 
 PROJECT_ROOT = os.path.abspath(os.environ.get("PROJECT_ROOT", "."))
 
@@ -49,6 +49,25 @@ class Handler(BaseHTTPRequestHandler):
             self._file(query.get("root", [PROJECT_ROOT])[0], query.get("path", [""])[0])
         else:
             self._json({"error": "not found"}, 404)
+
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        if parsed.path == "/api/analyze":
+            self._analyze()
+        else:
+            self._json({"error": "not found"}, 404)
+
+    def _analyze(self):
+        try:
+            length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(length) if length else b"{}"
+            data = json.loads(body.decode("utf-8"))
+            files = data.get("files", [])
+            project = data.get("project", "project")
+            ir = build_ir_from_files(files, project)
+            self._json(ir)
+        except Exception as e:  # noqa: BLE001 —— 接口要兜底返回错误
+            self._json({"error": str(e)}, 500)
 
     def _ir(self, root: str):
         try:

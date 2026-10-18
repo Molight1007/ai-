@@ -20,6 +20,7 @@ import sys
 
 from backend.ir.validate import errors_only, validate
 from backend.rules.engine import analyze as analyze_rules
+from backend.rules.engine import analyze_from_files
 from backend.rules.engine import load_rules
 
 _SKIP_DIRS = {
@@ -84,10 +85,7 @@ def _signature(lines: list[str], node: ast.AST) -> str:
     return t.split("#")[0].rstrip()
 
 
-def scan_file(root: str, path: str) -> dict:
-    rp = _rel(root, path)
-    with open(path, "r", encoding="utf-8") as fp:
-        src = fp.read()
+def parse_source(rp: str, src: str) -> dict:
     lines = src.splitlines()
     tree = ast.parse(src)
 
@@ -133,6 +131,13 @@ def scan_file(root: str, path: str) -> dict:
     }
 
 
+def scan_file(root: str, path: str) -> dict:
+    rp = _rel(root, path)
+    with open(path, "r", encoding="utf-8") as fp:
+        src = fp.read()
+    return parse_source(rp, src)
+
+
 def _resolve_import(modname: str, path_set: set[str]) -> str | None:
     """把 import 模块名解析为项目内文件路径；外部库返回 None。"""
     parts = modname.split(".")
@@ -144,15 +149,7 @@ def _resolve_import(modname: str, path_set: set[str]) -> str | None:
     return None
 
 
-def build_ir(root: str) -> dict:
-    root = os.path.abspath(root)
-    root_name = os.path.basename(root.rstrip("/\\")) or "project"
-
-    metas = [scan_file(root, p) for p in iter_py_files(root)]
-    metas.sort(key=lambda m: m["path"])
-    if not metas:
-        raise ValueError(f"目录下没有 .py 文件：{root}")
-
+def _assemble(metas: list[dict], root_name: str, violations) -> dict:
     idgen = IdGen()
 
     # 文件 id
@@ -242,7 +239,7 @@ def build_ir(root: str) -> dict:
 
     # rule_violations（映射 node）
     rvs: list[dict] = []
-    for v in analyze_rules(root, load_rules()):
+    for v in violations:
         node = None
         if v.name and (v.path, v.name) in func_ids:
             node = func_ids[(v.path, v.name)]
@@ -285,6 +282,35 @@ def build_ir(root: str) -> dict:
         "findings": [],
     }
     return ir
+
+
+def build_ir(root: str) -> dict:
+    root = os.path.abspath(root)
+    root_name = os.path.basename(root.rstrip("/\\")) or "project"
+    metas = [scan_file(root, p) for p in iter_py_files(root)]
+    metas.sort(key=lambda m: m["path"])
+    if not metas:
+        raise ValueError(f"目录下没有 .py 文件：{root}")
+    violations = analyze_rules(root, load_rules())
+    return _assemble(metas, root_name, violations)
+
+
+def build_ir_from_files(files: list[dict], project_name: str = "project") -> dict:
+    """从内存文件列表构建 IR（files = [{path, content}]）。
+
+    供「前端点选文件夹 → 上传文件内容」场景使用，后端无需读磁盘。
+    """
+    metas = []
+    for f in files:
+        try:
+            metas.append(parse_source(f["path"], f["content"]))
+        except SyntaxError:
+            continue
+    metas.sort(key=lambda m: m["path"])
+    if not metas:
+        raise ValueError("没有可解析的 .py 文件")
+    violations = analyze_from_files(files, load_rules())
+    return _assemble(metas, project_name, violations)
 
 
 ENRICH_FILENAME = "enrich.ir.json"
