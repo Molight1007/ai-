@@ -199,7 +199,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             inject = (
                 "<script>window.__EXPORT__ = "
-                + json.dumps({"ir": ir, "files": files}, ensure_ascii=False)
+                + json.dumps({"ir": ir, "files": files}, ensure_ascii=False).replace(
+                    "</", "<\\/"
+                )
                 + ";</script>"
             )
             html = template.replace("</head>", inject + "</head>", 1)
