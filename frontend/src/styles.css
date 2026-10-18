@@ -490,6 +490,40 @@ body {
   font-size: 14px;
 }
 
+/* 分析进度面板 */
+.analyzing {
+  margin: auto;
+  width: 440px;
+  max-width: 90%;
+  text-align: center;
+}
+
+.an-title {
+  font-size: 14px;
+  color: var(--text);
+  margin-bottom: 16px;
+}
+
+.an-bar {
+  height: 6px;
+  background: var(--surface);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.an-fill {
+  height: 100%;
+  background: #185fa5;
+  border-radius: 3px;
+  transition: width 1s linear;
+}
+
+.an-meta {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
 .code-loading {
   padding: 16px;
   color: var(--muted);

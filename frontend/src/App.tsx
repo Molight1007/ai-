@@ -22,6 +22,33 @@ function truncate(s: string, n: number): string {
 
 const SEV_RANK: Record<string, number> = { error: 0, warning: 1, info: 2 }
 
+function AnalyzingPane({ enriched }: { enriched: boolean }) {
+  const [elapsed, setElapsed] = useState(0)
+  useEffect(() => {
+    const t = setInterval(() => setElapsed((e) => e + 1), 1000)
+    return () => clearInterval(t)
+  }, [])
+  const budget = enriched ? 60 : 6
+  const pct = Math.min(92, Math.round((elapsed / budget) * 92))
+  const stage =
+    elapsed < 2
+      ? '读取文件…'
+      : elapsed < 5
+        ? '静态分析：结构抽取 / 规则违规…'
+        : enriched
+          ? 'AI 语义分析：模块职责 / 功能描述 / bug 排查…'
+          : '生成结果…'
+  return (
+    <div className="analyzing">
+      <div className="an-title">{stage}</div>
+      <div className="an-bar">
+        <div className="an-fill" style={{ width: `${pct}%` }} />
+      </div>
+      <div className="an-meta">已用时 {elapsed}s · 预计 {budget}s 内完成</div>
+    </div>
+  )
+}
+
 export default function App() {
   const [view, setView] = useState<View>('code')
   const [path, setPath] = useState<string[]>(['project'])
@@ -36,7 +63,7 @@ export default function App() {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   })
   const [fileContent, setFileContent] = useState<Map<string, string> | null>(null)
-  const [analyzing, setAnalyzing] = useState(false)
+  const [analyzing, setAnalyzing] = useState<null | 'basic' | 'enrich'>(null)
 
   function analyze(r: string) {
     setRoot(r)
@@ -54,7 +81,7 @@ export default function App() {
 
   async function doPick(useEnrich: boolean) {
     setError(null)
-    setAnalyzing(true)
+    setAnalyzing(useEnrich ? 'enrich' : 'basic')
     try {
       const { project, files: picked, readme } = await pickDirectory()
       if (!picked.length) {
@@ -73,7 +100,7 @@ export default function App() {
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
-      setAnalyzing(false)
+      setAnalyzing(null)
     }
   }
 
@@ -98,7 +125,7 @@ export default function App() {
   if (analyzing) {
     return (
       <div className="app">
-        <div className="loading">正在分析项目…（AI 增强可能需要几十秒）</div>
+        <AnalyzingPane enriched={analyzing === 'enrich'} />
       </div>
     )
   }
