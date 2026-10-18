@@ -15,12 +15,6 @@ const PROVIDERS: Provider[] = [
     models: ['deepseek-chat', 'deepseek-reasoner', 'deepseek-v4-pro', 'deepseek-v4-flash', 'deepseek-v4.1-flash'],
   },
   {
-    name: '硅基流动（聚合多模型）',
-    base_url: 'https://api.siliconflow.cn/v1',
-    models: ['deepseek-ai/DeepSeek-V4-Pro', 'deepseek-ai/DeepSeek-V4-Flash', 'Qwen/Qwen3-Coder-Plus', 'THUDM/GLM-5'],
-    note: '一个 Key 调用多家模型（DeepSeek/Qwen/GLM/Kimi 等），新用户送余额',
-  },
-  {
     name: '通义千问 Qwen',
     base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
     models: ['qwen3-coder-plus', 'qwen-coder-plus', 'qwen-plus'],
