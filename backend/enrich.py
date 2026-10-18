@@ -33,13 +33,51 @@ SYSTEM_PROMPT = """你是一名代码架构分析专家。给定一个 Python �
 - 用中文书写 summary / description / title / detail / suggestion"""
 
 
+OVERVIEW_PROMPT = """你是代码架构分析师。给定一个 Python 项目的模块、文件与函数结构（含 docstring）和部分源码，请用 200~300 字中文概述这个项目：它是做什么的、由哪些核心模块组成、整体架构与主流程。只输出概述正文，不要标题、不要 markdown 列表符号。"""
+
+
+def generate_overview(ir: dict, file_contents: dict[str, str]) -> str:
+    """无 README 时，先让 LLM 整体理解项目，生成一份项目概述（相当于自产 README）。"""
+    lines = [f"项目名：{ir['meta']['project']}\n"]
+    lines.append("模块：")
+    for m in ir["modules"]:
+        lines.append(f"- {m['id']} label={m['label']}")
+    lines.append("\n文件与函数（含 docstring）：")
+    for f in ir["files"]:
+        lines.append(f"- {f['id']} path={f['path']} doc={(f.get('summary') or '')[:60]}")
+        for fn in f.get("functions", []):
+            lines.append(f"    {fn['name']} doc={(fn.get('summary') or '')[:50]}")
+    lines.append("\n部分源码（截断）：")
+    budget = 20000
+    for path, content in list(file_contents.items())[:60]:
+        chunk = content[:1500]
+        lines.append(f"=== {path} ===")
+        lines.append(chunk)
+        budget -= len(chunk)
+        if budget <= 0:
+            break
+    reply = chat([
+        {"role": "system", "content": OVERVIEW_PROMPT},
+        {"role": "user", "content": "\n".join(lines)},
+    ])
+    return reply.strip()
+
+
 def enrich(ir: dict, file_contents: dict[str, str] | None = None,
            focus_paths: list[str] | None = None) -> dict:
     """对骨架 IR 做语义填充，返回 enrich 后的 IR（原 IR 不修改）。
 
     focus_paths 指定时只重新生成这些文件的语义（增量更新），否则全量生成。
+    无 README 且非增量时，先让 LLM 整体理解项目并生成概述，再据此补语义。
     """
     ir = json.loads(json.dumps(ir))  # 深拷贝，避免污染调用方
+    if not ir.get("meta", {}).get("overview") and focus_paths is None:
+        try:
+            overview = generate_overview(ir, file_contents or {})
+            if overview:
+                ir["meta"]["overview"] = overview
+        except Exception:
+            pass  # 概述生成失败不阻断主流程
     reply = chat([
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": _build_prompt(ir, file_contents or {}, focus_paths)},
