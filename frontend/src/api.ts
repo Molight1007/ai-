@@ -49,6 +49,22 @@ export async function shutdownServer(): Promise<void> {
   }
 }
 
+export interface LlmStatus {
+  configured: boolean
+  model: string
+  base_url: string
+}
+
+export async function loadLlmStatus(): Promise<LlmStatus> {
+  try {
+    const res = await fetch('/api/llm/status')
+    if (res.ok) return await res.json()
+  } catch {
+    // 后端未启动
+  }
+  return { configured: false, model: '', base_url: '' }
+}
+
 export async function loadIR(root: string | null): Promise<IR> {
   if (!root) return SAMPLE_IR
   const res = await fetch(`/api/ir?root=${encodeURIComponent(root)}`)

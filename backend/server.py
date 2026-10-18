@@ -24,6 +24,7 @@ from urllib.parse import parse_qs, urlparse
 
 from backend.builder.builder import build_ir_from_files, load_or_build_ir
 from backend.enrich import enrich
+from backend.llm import load_config
 
 PROJECT_ROOT = os.path.abspath(os.environ.get("PROJECT_ROOT", "."))
 
@@ -45,6 +46,13 @@ class Handler(BaseHTTPRequestHandler):
 
         if path == "/api/health":
             self._json({"ok": True, "root": PROJECT_ROOT})
+        elif path == "/api/llm/status":
+            cfg = load_config()
+            self._json({
+                "configured": bool(cfg.get("api_key")),
+                "model": cfg.get("model"),
+                "base_url": cfg.get("base_url"),
+            })
         elif path == "/api/ir":
             self._ir(query.get("root", [PROJECT_ROOT])[0])
         elif path == "/api/file":

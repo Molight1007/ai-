@@ -30,6 +30,11 @@ def load_config() -> dict:
     return cfg
 
 
+def has_key() -> bool:
+    """是否已配置 API Key（供前端显示 AI 增强可用性）。"""
+    return bool(load_config().get("api_key"))
+
+
 def chat(messages: list[dict], config: dict | None = None) -> str:
     """调用 chat completions，返回助手回复文本。"""
     cfg = config or load_config()
