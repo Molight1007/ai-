@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import type { LlmConfig } from './api'
+import { useEffect, useState } from 'react'
+import type { LlmConfig, LlmStatus } from './api'
 
 interface Provider {
   name: string
@@ -68,10 +68,15 @@ const PROVIDERS: Provider[] = [
   { name: '自定义（任意 OpenAI 兼容端点）', base_url: '', models: [] },
 ]
 
+function providerIndexByBaseUrl(baseUrl: string): number {
+  const idx = PROVIDERS.findIndex((p) => p.base_url && baseUrl.startsWith(p.base_url))
+  return idx >= 0 ? idx : PROVIDERS.length - 1
+}
+
 interface Props {
   initial?: string
   error?: string
-  llmConfigured: boolean | null
+  llmStatus: LlmStatus | null
   onAnalyze: (root: string) => void
   onPick: () => void
   onConfigureKey: (cfg: LlmConfig) => void
@@ -82,7 +87,7 @@ interface Props {
 export function ProjectInput({
   initial,
   error,
-  llmConfigured,
+  llmStatus,
   onAnalyze,
   onPick,
   onConfigureKey,
@@ -92,9 +97,22 @@ export function ProjectInput({
   const [value, setValue] = useState(initial ?? '')
   const [providerIdx, setProviderIdx] = useState(0)
   const [baseUrl, setBaseUrl] = useState(PROVIDERS[0].base_url)
-  const [model, setModel] = useState(PROVIDERS[0].models[0])
+  const [model, setModel] = useState(PROVIDERS[0].models[0] ?? '')
   const [keyValue, setKeyValue] = useState('')
   const [showConfig, setShowConfig] = useState(false)
+
+  const configured = llmStatus?.configured ?? false
+
+  // 回显已保存的配置（本地持久化，打开自动恢复）
+  useEffect(() => {
+    if (!llmStatus) return
+    if (llmStatus.base_url) {
+      const idx = providerIndexByBaseUrl(llmStatus.base_url)
+      setProviderIdx(idx)
+      setBaseUrl(llmStatus.base_url)
+    }
+    if (llmStatus.model) setModel(llmStatus.model)
+  }, [llmStatus])
 
   function onProviderChange(i: number) {
     setProviderIdx(i)
@@ -106,7 +124,9 @@ export function ProjectInput({
     onConfigureKey({ api_key: keyValue.trim(), model: model.trim(), base_url: baseUrl.trim() })
   }
 
-  const needConfig = llmConfigured === false || (llmConfigured === true && showConfig)
+  const needConfig = !configured || showConfig
+  const curProvider = PROVIDERS[providerIdx]
+  const providerName = curProvider.name
 
   return (
     <div className="app">
@@ -117,14 +137,14 @@ export function ProjectInput({
         <div className="pi-card">
           <div className="pi-card-head">
             <span className="pi-card-title">① 配置大模型</span>
-            {llmConfigured === true && !showConfig && <span className="pi-badge pi-badge-ok">已配置</span>}
-            {llmConfigured === false && <span className="pi-badge pi-badge-warn">未配置</span>}
-            {llmConfigured === null && <span className="pi-badge">检测中…</span>}
+            {configured && !showConfig && <span className="pi-badge pi-badge-ok">已配置</span>}
+            {!configured && <span className="pi-badge pi-badge-warn">未配置</span>}
+            {llmStatus === null && <span className="pi-badge">检测中…</span>}
           </div>
 
           {needConfig ? (
             <div className="pi-config">
-              <div className="pi-field-label">服务商</div>
+              <div className="pi-field-label">模型公司</div>
               <select
                 className="pi-select"
                 value={providerIdx}
@@ -136,31 +156,29 @@ export function ProjectInput({
                   </option>
                 ))}
               </select>
-              {PROVIDERS[providerIdx].note && (
-                <div className="pi-hint">{PROVIDERS[providerIdx].note}</div>
+
+              <div className="pi-field-label">模型版本</div>
+              {curProvider.models.length > 0 ? (
+                <select
+                  className="pi-select"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                >
+                  {curProvider.models.map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  className="pi-key-input mono"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  placeholder="模型名 / 接入点 ID"
+                />
               )}
-
-              <div className="pi-field-label">Base URL</div>
-              <input
-                className="pi-key-input mono"
-                value={baseUrl}
-                onChange={(e) => setBaseUrl(e.target.value)}
-                placeholder="OpenAI 兼容端点"
-              />
-
-              <div className="pi-field-label">模型</div>
-              <input
-                className="pi-key-input mono"
-                value={model}
-                onChange={(e) => setModel(e.target.value)}
-                placeholder="模型名"
-                list="model-options"
-              />
-              <datalist id="model-options">
-                {PROVIDERS[providerIdx].models.map((m) => (
-                  <option key={m} value={m} />
-                ))}
-              </datalist>
+              {curProvider.note && <div className="pi-hint">{curProvider.note}</div>}
 
               <div className="pi-field-label">API Key</div>
               <input
@@ -178,7 +196,7 @@ export function ProjectInput({
             </div>
           ) : (
             <div className="pi-card-desc">
-              已就绪，下一步选择项目文件夹即可
+              当前：{providerName} · {model}
               <span className="pi-relink" onClick={() => setShowConfig(true)}>
                 重新配置
               </span>
@@ -193,10 +211,10 @@ export function ProjectInput({
           <div className="pi-card-desc">
             自动读取代码 + README → 定位 AI 代码板块 → 按规范生成架构图
           </div>
-          <button className="pi-pick" onClick={onPick} disabled={llmConfigured !== true}>
+          <button className="pi-pick" onClick={onPick} disabled={!configured}>
             选择文件夹生成架构图
           </button>
-          {llmConfigured !== true && <div className="pi-hint">请先完成第 ① 步配置大模型</div>}
+          {!configured && <div className="pi-hint">请先完成第 ① 步配置大模型</div>}
         </div>
 
         <div className="pi-divider">或手动输入路径</div>

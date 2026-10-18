@@ -3,7 +3,7 @@ import { Diagram } from './Diagram'
 import { CodePanel } from './CodePanel'
 import { FunctionDetail } from './FunctionDetail'
 import { IssuesPanel, type IssueItem } from './IssuesPanel'
-import { analyzeFiles, configureLlm, loadIR, loadLlmStatus, shutdownServer, updateIr, type LlmConfig } from './api'
+import { analyzeFiles, configureLlm, loadIR, loadLlmStatus, shutdownServer, updateIr, type LlmConfig, type LlmStatus } from './api'
 import { ProjectInput } from './ProjectInput'
 import { pickDirectory } from './fs'
 import { SAMPLE_IR } from './data'
@@ -64,10 +64,10 @@ export default function App() {
   })
   const [fileContent, setFileContent] = useState<Map<string, string> | null>(null)
   const [analyzing, setAnalyzing] = useState(false)
-  const [llmConfigured, setLlmConfigured] = useState<boolean | null>(null)
+  const [llmStatus, setLlmStatus] = useState<LlmStatus | null>(null)
 
   useEffect(() => {
-    loadLlmStatus().then((s) => setLlmConfigured(s.configured))
+    loadLlmStatus().then((s) => setLlmStatus(s))
   }, [])
 
   function analyze(r: string) {
@@ -123,7 +123,7 @@ export default function App() {
     try {
       await configureLlm(cfg)
       const s = await loadLlmStatus()
-      setLlmConfigured(s.configured)
+      setLlmStatus(s)
       setError(null)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
@@ -158,10 +158,10 @@ export default function App() {
 
   if (!ir) {
     if (error) {
-      return <ProjectInput initial={root ?? ''} error={error} llmConfigured={llmConfigured} onAnalyze={analyze} onPick={doPick} onConfigureKey={configureKey} onDemo={loadDemo} onShutdown={shutdown} />
+      return <ProjectInput initial={root ?? ''} error={error} llmStatus={llmStatus} onAnalyze={analyze} onPick={doPick} onConfigureKey={configureKey} onDemo={loadDemo} onShutdown={shutdown} />
     }
     if (root === null) {
-      return <ProjectInput llmConfigured={llmConfigured} onAnalyze={analyze} onPick={doPick} onConfigureKey={configureKey} onDemo={loadDemo} onShutdown={shutdown} />
+      return <ProjectInput llmStatus={llmStatus} onAnalyze={analyze} onPick={doPick} onConfigureKey={configureKey} onDemo={loadDemo} onShutdown={shutdown} />
     }
     return (
       <div className="app">
