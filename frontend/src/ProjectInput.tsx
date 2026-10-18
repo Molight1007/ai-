@@ -1,63 +1,102 @@
 import { useEffect, useState } from 'react'
 import type { LlmConfig, LlmStatus } from './api'
 
+interface ModelOption {
+  label: string
+  value: string
+}
+
 interface Provider {
   name: string
   base_url: string
-  models: string[]
+  models: ModelOption[]
   note?: string
 }
+
+const CUSTOM = '__custom__'
 
 const PROVIDERS: Provider[] = [
   {
     name: 'DeepSeek',
     base_url: 'https://api.deepseek.com',
-    models: ['deepseek-v4-pro', 'deepseek-flash', 'deepseek-chat', 'deepseek-reasoner'],
+    models: [
+      { label: 'V4-Pro（deepseek-v4-pro）', value: 'deepseek-v4-pro' },
+      { label: 'V4.1-Flash（deepseek-flash）', value: 'deepseek-flash' },
+    ],
   },
   {
     name: '通义千问 Qwen',
     base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-    models: ['qwen3-coder-plus', 'qwen-coder-plus', 'qwen-plus'],
+    models: [
+      { label: 'qwen3-coder-plus', value: 'qwen3-coder-plus' },
+      { label: 'qwen-coder-plus', value: 'qwen-coder-plus' },
+      { label: 'qwen-plus', value: 'qwen-plus' },
+    ],
   },
   {
     name: '智谱 GLM',
     base_url: 'https://open.bigmodel.cn/api/paas/v4',
-    models: ['glm-5', 'glm-4.5', 'glm-4-flash'],
+    models: [
+      { label: 'glm-5', value: 'glm-5' },
+      { label: 'glm-4.5', value: 'glm-4.5' },
+      { label: 'glm-4-flash', value: 'glm-4-flash' },
+    ],
   },
   {
     name: 'Kimi（月之暗面）',
     base_url: 'https://api.moonshot.cn/v1',
-    models: ['kimi-k2', 'moonshot-v1-8k'],
+    models: [
+      { label: 'kimi-k2', value: 'kimi-k2' },
+      { label: 'moonshot-v1-8k', value: 'moonshot-v1-8k' },
+    ],
   },
   {
     name: 'MiniMax',
     base_url: 'https://api.minimaxi.com/v1',
-    models: ['MiniMax-M3', 'MiniMax-M2.5'],
+    models: [
+      { label: 'MiniMax-M3', value: 'MiniMax-M3' },
+      { label: 'MiniMax-M2.5', value: 'MiniMax-M2.5' },
+    ],
   },
   {
     name: '腾讯混元',
     base_url: 'https://api.hunyuan.cloud.tencent.com/v1',
-    models: ['hunyuan-turbo', 'hunyuan-pro'],
+    models: [
+      { label: 'hunyuan-turbo', value: 'hunyuan-turbo' },
+      { label: 'hunyuan-pro', value: 'hunyuan-pro' },
+    ],
   },
   {
     name: '文心 ERNIE（百度千帆）',
     base_url: 'https://qianfan.baidubce.com/v2',
-    models: ['ernie-4.0-8k', 'ernie-3.5-8k'],
+    models: [
+      { label: 'ernie-4.0-8k', value: 'ernie-4.0-8k' },
+      { label: 'ernie-3.5-8k', value: 'ernie-3.5-8k' },
+    ],
   },
   {
     name: '讯飞星火',
     base_url: 'https://spark-api-open.xf-yun.com/v1',
-    models: ['4.0Ultra', 'generalv3.5'],
+    models: [
+      { label: '4.0Ultra', value: '4.0Ultra' },
+      { label: 'generalv3.5', value: 'generalv3.5' },
+    ],
   },
   {
     name: '阶跃星辰 Step',
     base_url: 'https://api.stepfun.com/v1',
-    models: ['step-2', 'step-1.5v'],
+    models: [
+      { label: 'step-2', value: 'step-2' },
+      { label: 'step-1.5v', value: 'step-1.5v' },
+    ],
   },
   {
     name: '百川 Baichuan',
     base_url: 'https://api.baichuan-ai.com/v1',
-    models: ['Baichuan4', 'Baichuan3-Turbo'],
+    models: [
+      { label: 'Baichuan4', value: 'Baichuan4' },
+      { label: 'Baichuan3-Turbo', value: 'Baichuan3-Turbo' },
+    ],
   },
   {
     name: '豆包（火山方舟）',
@@ -97,7 +136,8 @@ export function ProjectInput({
   const [value, setValue] = useState(initial ?? '')
   const [providerIdx, setProviderIdx] = useState(0)
   const [baseUrl, setBaseUrl] = useState(PROVIDERS[0].base_url)
-  const [model, setModel] = useState(PROVIDERS[0].models[0] ?? '')
+  const [model, setModel] = useState(PROVIDERS[0].models[0]?.value ?? '')
+  const [customModel, setCustomModel] = useState('')
   const [keyValue, setKeyValue] = useState('')
   const [showConfig, setShowConfig] = useState(false)
 
@@ -111,17 +151,32 @@ export function ProjectInput({
       setProviderIdx(idx)
       setBaseUrl(llmStatus.base_url)
     }
-    if (llmStatus.model) setModel(llmStatus.model)
+    if (llmStatus.model) {
+      const prov = PROVIDERS[providerIndexByBaseUrl(llmStatus.base_url || '')]
+      const found = prov.models.find((m) => m.value === llmStatus.model)
+      if (found) {
+        setModel(found.value)
+      } else {
+        setModel(CUSTOM)
+        setCustomModel(llmStatus.model)
+      }
+    }
   }, [llmStatus])
 
   function onProviderChange(i: number) {
     setProviderIdx(i)
     setBaseUrl(PROVIDERS[i].base_url)
-    setModel(PROVIDERS[i].models[0] ?? '')
+    setModel(PROVIDERS[i].models[0]?.value ?? CUSTOM)
+    setCustomModel('')
   }
 
   function save() {
-    onConfigureKey({ api_key: keyValue.trim(), model: model.trim(), base_url: baseUrl.trim() })
+    const finalModel = model === CUSTOM ? customModel.trim() : model
+    onConfigureKey({
+      api_key: keyValue.trim(),
+      model: finalModel,
+      base_url: baseUrl.trim(),
+    })
   }
 
   const needConfig = !configured || showConfig
@@ -159,21 +214,32 @@ export function ProjectInput({
 
               <div className="pi-field-label">模型版本</div>
               {curProvider.models.length > 0 ? (
-                <select
-                  className="pi-select"
-                  value={model}
-                  onChange={(e) => setModel(e.target.value)}
-                >
-                  {curProvider.models.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
+                <>
+                  <select
+                    className="pi-select"
+                    value={model}
+                    onChange={(e) => setModel(e.target.value)}
+                  >
+                    {curProvider.models.map((m) => (
+                      <option key={m.value} value={m.value}>
+                        {m.label}
+                      </option>
+                    ))}
+                    <option value={CUSTOM}>自定义模型名…</option>
+                  </select>
+                  {model === CUSTOM && (
+                    <input
+                      className="pi-key-input mono"
+                      value={customModel}
+                      onChange={(e) => setCustomModel(e.target.value)}
+                      placeholder="输入官网显示的模型名（区分大小写）"
+                    />
+                  )}
+                </>
               ) : (
                 <input
                   className="pi-key-input mono"
-                  value={model}
+                  value={model === CUSTOM ? customModel : model}
                   onChange={(e) => setModel(e.target.value)}
                   placeholder="模型名 / 接入点 ID"
                 />
@@ -192,11 +258,13 @@ export function ProjectInput({
               <button className="pi-key-save" disabled={!keyValue.trim()} onClick={save}>
                 保存
               </button>
-              <div className="pi-hint">配置保存在本地 backend/llm.toml，不会提交到 GitHub</div>
+              <div className="pi-hint">
+                模型名区分大小写，base_url 与模型名请以各服务商官网控制台为准
+              </div>
             </div>
           ) : (
             <div className="pi-card-desc">
-              当前：{providerName} · {model}
+              当前：{providerName} · {model === CUSTOM ? customModel : model}
               <span className="pi-relink" onClick={() => setShowConfig(true)}>
                 重新配置
               </span>
