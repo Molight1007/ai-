@@ -10,7 +10,7 @@ import { SAMPLE_IR } from './data'
 import type { DiagramNode, DiagramEdge } from './layout'
 import type { CapabilityNode, FileNode, IR, Module } from './types'
 
-type View = 'code' | 'function' | 'review'
+type View = 'code' | 'function' | 'review' | 'structure'
 
 function basename(p: string): string {
   return p.split('/').pop() ?? p
@@ -23,6 +23,59 @@ function truncate(s: string, n: number): string {
 const SEV_RANK: Record<string, number> = { error: 0, warning: 1, info: 2 }
 
 const CACHE_PREFIX = 'aicodeviz_ir_'
+
+const CATEGORY_INFO: { key: string; label: string; desc: string }[] = [
+  { key: 'backend', label: '后端业务代码', desc: '软件的大脑：算数据、跑逻辑、提供接口' },
+  { key: 'frontend', label: '前端界面代码', desc: '用户看到和操作的页面（网页 / 桌面窗口）' },
+  { key: 'tools', label: '工具脚本', desc: '辅助自动化：跑实验、出报告、部署' },
+  { key: 'docs', label: '文档', desc: '说明书：README、设计文档、笔记' },
+  { key: 'data', label: '数据', desc: '喂给程序的数据、样本、题库' },
+  { key: 'vendor', label: '第三方库', desc: '借来的现成代码（不是你自己写的）' },
+  { key: 'config', label: '配置', desc: '依赖清单、设置项' },
+  { key: 'build', label: '构建产物', desc: '机器生成的，不用看（dist / build / 缓存）' },
+]
+
+const CAT_TO_TAB: Record<string, 'core' | 'tools' | 'docs'> = {
+  backend: 'core', frontend: 'core',
+  tools: 'tools',
+  docs: 'docs', data: 'docs', vendor: 'docs', config: 'docs', build: 'docs',
+}
+
+function StructurePanel({ ir, onOpenModule }: { ir: IR; onOpenModule: (id: string) => void }) {
+  const byCat = new Map<string, Module[]>()
+  for (const m of ir.modules) {
+    const c = m.category ?? 'docs'
+    if (!byCat.has(c)) byCat.set(c, [])
+    byCat.get(c)!.push(m)
+  }
+  const present = CATEGORY_INFO.filter((c) => (byCat.get(c.key) ?? []).length > 0)
+  return (
+    <div className="structure-panel">
+      <div className="module-bar">
+        <span className="module-bar-label">代码组成讲解</span>
+        <span className="module-bar-desc">
+          这个项目由下面几类代码组成，每类负责一件事 —— 点目录可下钻看源码
+        </span>
+      </div>
+      {present.map((c) => (
+        <div className="struct-card" key={c.key}>
+          <div className="struct-head">
+            <span className="struct-label">{c.label}</span>
+            <span className="struct-count">{byCat.get(c.key)!.length} 个目录</span>
+          </div>
+          <div className="struct-desc">{c.desc}</div>
+          <div className="struct-dirs">
+            {byCat.get(c.key)!.map((m) => (
+              <button key={m.id} className="struct-dir" onClick={() => onOpenModule(m.id)}>
+                {m.label}
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
 
 function AnalyzingPane() {
   const [elapsed, setElapsed] = useState(0)
@@ -299,7 +352,8 @@ export default function App() {
   }
 
   // ---- L1 ----
-  const visibleModules = ir.modules.filter((m) => (m.category ?? 'core') === category)
+  const tabOf = (m: Module): 'core' | 'tools' | 'docs' => CAT_TO_TAB[m.category ?? 'docs'] ?? 'docs'
+  const visibleModules = ir.modules.filter((m) => tabOf(m) === category)
   const moduleNodes: DiagramNode[] = visibleModules.map((m) => ({
     id: m.id,
     label: m.label,
@@ -387,7 +441,13 @@ export default function App() {
 
   // ---- 主体内容 ----
   let content: JSX.Element | null = null
-  if (level === 1) {
+  if (level === 1 && view === 'structure') {
+    content = (
+      <div className="l2-wrap">
+        <StructurePanel ir={ir} onOpenModule={(id) => setPath(['project', id])} />
+      </div>
+    )
+  } else if (level === 1) {
     const catTabs: { key: 'core' | 'tools' | 'docs'; label: string }[] = [
       { key: 'core', label: '核心架构' },
       { key: 'tools', label: '工具' },
@@ -546,6 +606,16 @@ export default function App() {
           onClick={() => setView('review')}
         >
           审查模式
+        </button>
+        <button
+          className={view === 'structure' ? 'tab active' : 'tab'}
+          onClick={() => {
+            setView('structure')
+            setPath(['project'])
+            setCategory('core')
+          }}
+        >
+          结构讲解
         </button>
         <button className="theme-btn" onClick={exportArch}>导出</button>
         <button className="theme-btn" onClick={backToInput}>换项目</button>

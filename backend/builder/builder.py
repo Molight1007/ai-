@@ -31,30 +31,39 @@ _SKIP_DIRS = {
     ".pytest_cache", "results",
 }
 
-# 文件分类：core=核心业务 / tools=工具与支撑 / docs=文档与其他（前端分界面展示）
-_CORE_TOP = {
-    "agent", "contracts", "cli", "utils", "proj", "deploy",
-    "formal-imo", "imo_bench_eval", "superhuman", "imo_steps",
+# 文件分类（8 类，供前端「结构讲解」视图按代码组成归类讲解）
+_BACKEND_TOP = {
+    "agent", "contracts", "cli", "utils", "proj", "deploy", "formal-imo",
+    "imo_bench_eval", "superhuman", "backend", "server", "api", "app", "core",
 }
-_TOOL_TOP = {"tools", "scripts", "vendor", "lean-lsp-mcp", "测试工具"}
-_DOC_TOP = {
-    "docs", "archive", "output", "results", "logs", "data", "papers",
-    "sample_data", "prompts", "题库", "题库备份", "论文实践", "测试结果",
-    "与lean相关的插件", "lean-toolchain", "lean下载版",
-}
+_FRONTEND_TOP = {"frontend", "web", "src", "public", "assets", "components", "pages", "static", "ui"}
+_TOOL_TOP = {"tools", "scripts", "测试工具"}
+_VENDOR_TOP = {"vendor", "node_modules", "lib", "third_party", "lean-lsp-mcp", "lean-toolchain", "lean下载版", "与lean相关的插件"}
+_DATA_TOP = {"data", "sample_data", "题库", "题库备份", "dataset", "imo_steps"}
+_DOC_TOP = {"docs", "archive", "output", "results", "logs", "papers", "prompts", "论文实践", "测试结果"}
+_CONFIG_TOP = {"config", "conf", "settings"}
+_BUILD_TOP = {"dist", "build", "target", "out", ".venv", "venv"}
 
 
 def classify_path(path: str) -> str:
-    """把文件相对路径分类为 core / tools / docs（供前端分界面展示）。"""
+    """把文件相对路径分类为 backend/frontend/tools/docs/data/vendor/config/build。"""
     if path.endswith((".md", ".txt", ".docx", ".pdf")):
         return "docs"
     top = path.split("/", 1)[0]
-    if top in _DOC_TOP:
-        return "docs"
-    if top in _TOOL_TOP or top.startswith("ripgrep"):
+    if top in _FRONTEND_TOP:
+        return "frontend"
+    if top in _BACKEND_TOP or "/" not in path:
+        return "backend"
+    if top in _TOOL_TOP:
         return "tools"
-    if top in _CORE_TOP or "/" not in path:
-        return "core"
+    if top in _VENDOR_TOP or top.startswith("ripgrep"):
+        return "vendor"
+    if top in _DATA_TOP:
+        return "data"
+    if top in _CONFIG_TOP:
+        return "config"
+    if top in _BUILD_TOP:
+        return "build"
     return "docs"
 
 
